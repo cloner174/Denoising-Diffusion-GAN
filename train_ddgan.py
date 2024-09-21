@@ -449,7 +449,7 @@ def train(rank, gpu, args):
             global_step += 1
             if iteration % 100 == 0:
                 if rank == 0:
-                    print('epoch {} iteration{}, G Loss: {}, D Loss: {}'.format(epoch,iteration, errG.item(), errD.item()))
+                    print('epoch {} iteration{}, G Loss: {}, D Loss: {}'.format(epoch+1,iteration, errG.item(), errD.item()))
         
         if not args.no_lr_decay:
             
@@ -485,16 +485,20 @@ def train(rank, gpu, args):
 
 def init_processes(rank, size, fn, args):
     """ Initialize the distributed environment. """
-    if size > 1:
-        os.environ['MASTER_ADDR'] = args.master_address
-        os.environ['MASTER_PORT'] = '6020'
-        dist.init_process_group(backend='nccl', init_method='env://', rank=rank, world_size=size)
+    os.environ['MASTER_ADDR'] = args.master_address
+    os.environ['MASTER_PORT'] = '6020'
+    dist.init_process_group(
+        backend = args.what_backend if hasattr(args, 'what_backend') else 'nccl',
+        init_method='env://',
+        rank=rank,
+        world_size=size
+    )
     torch.cuda.set_device(args.local_rank)
     gpu = args.local_rank
     fn(rank, gpu, args)
-    if size > 1:
-        dist.barrier()
-        cleanup()
+    dist.barrier()
+    cleanup()
+
 
 def cleanup():
     dist.destroy_process_group()    
@@ -515,6 +519,8 @@ if __name__ == '__main__':
     parser.add_argument('--disc_small', type=str, default='yes', help='Use Small Discriminator?', choices=[ 'yes', 'no'])
     
     parser.add_argument('--data_dir', default='./data', help='path to image files')
+        
+    parser.add_argument('--what_backend', default='nccl',choices=['nccl', 'gloo'], help='backend to use inside init_process_group')
     
     parser.add_argument('--image_size', type=int, default=32,
                             help='size of image')
