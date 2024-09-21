@@ -435,13 +435,17 @@ def train(rank, gpu, args):
             global_step += 1
             if iteration % 100 == 0:
                 if rank == 0:
-                    print('epoch {} iteration{}, G Loss: {}, D Loss: {}'.format(epoch+1, iteration, errG.item(), errD.item()))
+                    print('epoch {} iteration {}, G Loss: {}, D Loss: {}'.format(epoch+1, iteration, errG.item(), errD.item()))
         
         if not args.no_lr_decay:
             schedulerG.step()
             schedulerD.step()
         
         if rank == 0:
+            
+            with open(os.path.join(exp_path, 'epoch_loss.txt'), 'a') as f:
+                f.write(f"Epoch {epoch}: {errG.item()}\n")
+            
             if epoch % 10 == 0:
                 torchvision.utils.save_image(x_pos_sample, os.path.join(exp_path, 'xpos_epoch_{}.png'.format(epoch)), normalize=True)
             
@@ -466,7 +470,10 @@ def train(rank, gpu, args):
                 torch.save(netG.state_dict(), os.path.join(exp_path, 'netG_{}.pth'.format(epoch)))
                 if args.use_ema:
                     optimizerG.swap_parameters_with_ema(store_params_in_ema=True)
-            
+        
+    if rank == 0:
+        with open(os.path.join(exp_path, 'final_loss.txt'), 'w') as f:
+            f.write(f"{errG.item()}\n")
 
 
 def init_processes(rank, size, fn, args):
