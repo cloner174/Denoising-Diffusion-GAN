@@ -166,7 +166,7 @@ def sample_posterior(coefficients, x_0,x_t, t):
         nonzero_mask = (1 - (t == 0).type(torch.float32))
 
         return mean + nonzero_mask[:,None,None,None] * torch.exp(0.5 * log_var) * noise
-            
+    
     sample_x_pos = p_sample(x_0, x_t, t)
     
     return sample_x_pos
@@ -187,6 +187,7 @@ def sample_from_model(coefficients, generator, n_time, x_init, T, opt):
 
 #%%
 def train(rank, gpu, args):
+    
     from score_sde.models.discriminator import Discriminator_small, Discriminator_large
     from score_sde.models.ncsnpp_generator_adagn import NCSNpp
     from EMA import EMA
@@ -211,11 +212,13 @@ def train(rank, gpu, args):
     
     dataset = DatasetCustom(labels_df = args.labels_df, transform = transform , class_ = args.mode)
     
+    
     try:
     
         train_sampler = torch.utils.data.distributed.DistributedSampler(dataset,
                                                                     num_replicas=args.world_size,
-                                                                    rank=rank)
+                                                                    rank=rank,
+                                                                    shuffle=True )
         data_loader = torch.utils.data.DataLoader(dataset,
                                                batch_size=batch_size,
                                                shuffle=False,
@@ -224,7 +227,7 @@ def train(rank, gpu, args):
                                                sampler=train_sampler,
                                                drop_last = True)
     except:
-        
+        train_sampler = None
         data_loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=2)
     
     
@@ -290,9 +293,9 @@ def train(rank, gpu, args):
     else:
         global_step, epoch, init_epoch = 0, 0, 0
     
-    
     for epoch in range(init_epoch, args.num_epoch+1):
-        train_sampler.set_epoch(epoch)
+        if train_sampler is not None:
+            train_sampler.set_epoch(epoch)
        
         for iteration, (x, y) in enumerate(data_loader):
             for p in netD.parameters():  
@@ -392,7 +395,7 @@ def train(rank, gpu, args):
             global_step += 1
             if iteration % 100 == 0:
                 if rank == 0:
-                    print('epoch {} iteration{}, G Loss: {}, D Loss: {}'.format(epoch,iteration, errG.item(), errD.item()))
+                    print('epoch {} iteration{}, G Loss: {}, D Loss: {}'.format(epoch+1,iteration, errG.item(), errD.item()))
         
         if not args.no_lr_decay:
             
@@ -424,45 +427,51 @@ def train(rank, gpu, args):
                 torch.save(netG.state_dict(), os.path.join(exp_path, 'netG_{}.pth'.format(epoch)))
                 if args.use_ema:
                     optimizerG.swap_parameters_with_ema(store_params_in_ema=True)
-            
+    
 
 
 def init_processes(rank, size, fn, args):
-    """ Initialize the distributed environment. """
-    os.environ['MASTER_ADDR'] = args.master_address
-    os.environ['MASTER_PORT'] = '6020'
+    if size > 1:
+        os.environ['MASTER_ADDR'] = args.master_address
+        os.environ['MASTER_PORT'] = '6020'
+        dist.init_process_group(backend='nccl', init_method='env://', rank=rank, world_size=size)
     torch.cuda.set_device(args.local_rank)
     gpu = args.local_rank
-    dist.init_process_group(backend='nccl', init_method='env://', rank=rank, world_size=size)
     fn(rank, gpu, args)
-    dist.barrier()
-    cleanup()  
+    if size > 1:
+        dist.barrier()
+        cleanup()
+
 
 def cleanup():
     dist.destroy_process_group()    
 #%%
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('ddgan parameters')
+    
     parser.add_argument('--seed', type=int, default=1024,
                         help='seed used for initialization')
     
     parser.add_argument('--resume', action='store_true',default=False)
     
-    parser.add_argument('--image_size', type=int, default=32,
+    parser.add_argument('--image_size', type=int, default=64,
                             help='size of image')
+    
     parser.add_argument('--num_channels', type=int, default=3,
                             help='channel of image')
+    
     parser.add_argument('--centered', action='store_false', default=True,
                             help='-1,1 scale')
     parser.add_argument('--use_geometric', action='store_true',default=False)
+    
     parser.add_argument('--beta_min', type=float, default= 0.1,
                             help='beta_min for diffusion')
     parser.add_argument('--beta_max', type=float, default=20.,
                             help='beta_max for diffusion')
     
-    
     parser.add_argument('--num_channels_dae', type=int, default=128,
                             help='number of initial channels in denosing model')
+    
     parser.add_argument('--n_mlp', type=int, default=3,
                             help='number of mlp layers for z')
     parser.add_argument('--ch_mult', nargs='+', type=int,
@@ -471,8 +480,10 @@ if __name__ == '__main__':
                             help='number of resnet blocks per scale')
     parser.add_argument('--attn_resolutions', default=(16,),
                             help='resolution of applying attention')
+    
     parser.add_argument('--dropout', type=float, default=0.,
                             help='drop-out rate')
+    
     parser.add_argument('--resamp_with_conv', action='store_false', default=True,
                             help='always up/down sampling with conv')
     parser.add_argument('--conditional', action='store_false', default=True,
@@ -494,28 +505,36 @@ if __name__ == '__main__':
     
     parser.add_argument('--embedding_type', type=str, default='positional', choices=['positional', 'fourier'],
                         help='type of time embedding')
+    
     parser.add_argument('--fourier_scale', type=float, default=16.,
                             help='scale of fourier transform')
+    
     parser.add_argument('--not_use_tanh', action='store_true',default=False)
     
     #geenrator and training
     
     parser.add_argument('--labels_df', type=str, default='labels_df.csv', help='labels_df path')
+    
     parser.add_argument('--mode', type=str, default='train', help='train or test or val ?')
     
     parser.add_argument('--DiscSmall', type=str, default='Yes', help='Use small discriminator? Yes or No')
     
     parser.add_argument('--exp', default='experiment_cifar_default', help='name of experiment')
+    
     parser.add_argument('--dataset', default='custom', help='name of dataset')
+    
     parser.add_argument('--nz', type=int, default=100)
+    
     parser.add_argument('--num_timesteps', type=int, default=4)
     
     parser.add_argument('--z_emb_dim', type=int, default=256)
     parser.add_argument('--t_emb_dim', type=int, default=256)
+    
     parser.add_argument('--batch_size', type=int, default=128, help='input batch size')
+    
     parser.add_argument('--num_epoch', type=int, default=1200)
+    
     parser.add_argument('--ngf', type=int, default=64)
-
     parser.add_argument('--lr_g', type=float, default=1.5e-4, help='learning rate g')
     parser.add_argument('--lr_d', type=float, default=1e-4, help='learning rate d')
     parser.add_argument('--beta1', type=float, default=0.5,
@@ -531,11 +550,11 @@ if __name__ == '__main__':
     parser.add_argument('--r1_gamma', type=float, default=0.05, help='coef for r1 reg')
     parser.add_argument('--lazy_reg', type=int, default=None,
                         help='lazy regulariation.')
-
+    
     parser.add_argument('--save_content', action='store_true',default=False)
     parser.add_argument('--save_content_every', type=int, default=50, help='save content for resuming every x epochs')
     parser.add_argument('--save_ckpt_every', type=int, default=25, help='save ckpt every x epochs')
-   
+    
     ###ddp
     parser.add_argument('--num_proc_node', type=int, default=1,
                         help='The number of nodes in multi node env.')
@@ -547,12 +566,11 @@ if __name__ == '__main__':
                         help='rank of process in the node')
     parser.add_argument('--master_address', type=str, default='127.0.0.1',
                         help='address for master')
-
-   
+    
     args = parser.parse_args()
     args.world_size = args.num_proc_node * args.num_process_per_node
     size = args.num_process_per_node
-
+    
     if size > 1:
         processes = []
         for rank in range(size):

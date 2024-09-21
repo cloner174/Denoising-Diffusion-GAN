@@ -28,6 +28,8 @@ from torch.multiprocessing import Process
 import torch.distributed as dist
 import shutil
 
+from datasets_prep.custom import DatasetCustom
+
 def copy_source(file, output_dir):
     shutil.copyfile(file, os.path.join(output_dir, os.path.basename(file)))
             
@@ -237,23 +239,45 @@ def train(rank, gpu, args):
             ])
         dataset = LMDBDataset(root='/datasets/celeba-lmdb/', name='celeba', train=True, transform=train_transform)
       
+    elif args.dataset == 'custom':
+        
+        transform = transforms.Compose([
+            transforms.Resize(args.image_size),
+            transforms.CenterCrop(args.image_size),
+            #transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            #transforms.Normalize((0.5,), (0.5,))
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ])
+        dataset = DatasetCustom(data_dir= args.data_dir, class_ = args.mode, transform = transform )
     
-    
-    train_sampler = torch.utils.data.distributed.DistributedSampler(dataset,
-                                                                    num_replicas=args.world_size,
-                                                                    rank=rank)
-    data_loader = torch.utils.data.DataLoader(dataset,
-                                               batch_size=batch_size,
-                                               shuffle=False,
-                                               num_workers=4,
-                                               pin_memory=True,
-                                               sampler=train_sampler,
-                                               drop_last = True)
+    try:
+        
+        train_sampler = torch.utils.data.distributed.DistributedSampler(dataset,
+                                                                        num_replicas=args.world_size,
+                                                                        rank=rank,
+                                                                        shuffle=True)
+        data_loader = torch.utils.data.DataLoader(dataset,
+                                                batch_size=batch_size,
+                                                shuffle=False,
+                                                num_workers=args.num_workers,
+                                                pin_memory=True,
+                                                sampler=train_sampler,
+                                                drop_last = True)
+    except Exception as e:
+        import time
+        print('An Error accured when attempting to use Train Sampler:' , e)
+        time.sleep(2)
+        print('Skip using it!')
+        time.sleep(1)
+        train_sampler = None
+        data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=args.num_workers, drop_last = True)
+        
     
     netG = NCSNpp(args).to(device)
     
 
-    if args.dataset == 'cifar10' or args.dataset == 'stackmnist':    
+    if args.dataset == 'cifar10' or args.dataset == 'stackmnist' or args.disc_small == 'yes':    
         netD = Discriminator_small(nc = 2*args.num_channels, ngf = args.ngf,
                                t_emb_dim = args.t_emb_dim,
                                act=nn.LeakyReLU(0.2)).to(device)
@@ -459,27 +483,36 @@ def train(rank, gpu, args):
                     optimizerG.swap_parameters_with_ema(store_params_in_ema=True)
             
 
-
 def init_processes(rank, size, fn, args):
     """ Initialize the distributed environment. """
-    os.environ['MASTER_ADDR'] = args.master_address
-    os.environ['MASTER_PORT'] = '6020'
+    if size > 1:
+        os.environ['MASTER_ADDR'] = args.master_address
+        os.environ['MASTER_PORT'] = '6020'
+        dist.init_process_group(backend='nccl', init_method='env://', rank=rank, world_size=size)
     torch.cuda.set_device(args.local_rank)
     gpu = args.local_rank
-    dist.init_process_group(backend='nccl', init_method='env://', rank=rank, world_size=size)
     fn(rank, gpu, args)
-    dist.barrier()
-    cleanup()  
+    if size > 1:
+        dist.barrier()
+        cleanup()
 
 def cleanup():
     dist.destroy_process_group()    
+
 #%%
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('ddgan parameters')
+    
     parser.add_argument('--seed', type=int, default=1024,
                         help='seed used for initialization')
     
     parser.add_argument('--resume', action='store_true',default=False)
+    
+    parser.add_argument('--num_workers', type=int, default=2, help='Number of workers for Data Loader')
+    
+    parser.add_argument('--mode', type=str, default='train', help='The mode of experience', choices=['train', 'test', 'val'])
+    
+    parser.add_argument('--disc_small', type=str, default='yes', help='Use Small Discriminator?', choices=[ 'yes', 'no'])
     
     parser.add_argument('--image_size', type=int, default=32,
                             help='size of image')
@@ -504,8 +537,10 @@ if __name__ == '__main__':
                             help='number of resnet blocks per scale')
     parser.add_argument('--attn_resolutions', default=(16,),
                             help='resolution of applying attention')
+    
     parser.add_argument('--dropout', type=float, default=0.,
                             help='drop-out rate')
+    
     parser.add_argument('--resamp_with_conv', action='store_false', default=True,
                             help='always up/down sampling with conv')
     parser.add_argument('--conditional', action='store_false', default=True,
@@ -533,36 +568,43 @@ if __name__ == '__main__':
     
     #geenrator and training
     parser.add_argument('--exp', default='experiment_cifar_default', help='name of experiment')
-    parser.add_argument('--dataset', default='cifar10', help='name of dataset')
+    
+    parser.add_argument('--dataset', default='custom', help='name of dataset')
+    
     parser.add_argument('--nz', type=int, default=100)
     parser.add_argument('--num_timesteps', type=int, default=4)
 
     parser.add_argument('--z_emb_dim', type=int, default=256)
     parser.add_argument('--t_emb_dim', type=int, default=256)
-    parser.add_argument('--batch_size', type=int, default=128, help='input batch size')
-    parser.add_argument('--num_epoch', type=int, default=1200)
+    
+    parser.add_argument('--batch_size', type=int, default=64, help='input batch size')
+    parser.add_argument('--num_epoch', type=int, default=5)
+    
     parser.add_argument('--ngf', type=int, default=64)
 
     parser.add_argument('--lr_g', type=float, default=1.5e-4, help='learning rate g')
     parser.add_argument('--lr_d', type=float, default=1e-4, help='learning rate d')
+    
     parser.add_argument('--beta1', type=float, default=0.5,
                             help='beta1 for adam')
     parser.add_argument('--beta2', type=float, default=0.9,
                             help='beta2 for adam')
+    
     parser.add_argument('--no_lr_decay',action='store_true', default=False)
     
     parser.add_argument('--use_ema', action='store_true', default=False,
                             help='use EMA or not')
+    
     parser.add_argument('--ema_decay', type=float, default=0.9999, help='decay rate for EMA')
     
     parser.add_argument('--r1_gamma', type=float, default=0.05, help='coef for r1 reg')
     parser.add_argument('--lazy_reg', type=int, default=None,
                         help='lazy regulariation.')
-
+    
     parser.add_argument('--save_content', action='store_true',default=False)
     parser.add_argument('--save_content_every', type=int, default=50, help='save content for resuming every x epochs')
     parser.add_argument('--save_ckpt_every', type=int, default=25, help='save ckpt every x epochs')
-   
+    
     ###ddp
     parser.add_argument('--num_proc_node', type=int, default=1,
                         help='The number of nodes in multi node env.')
@@ -574,12 +616,11 @@ if __name__ == '__main__':
                         help='rank of process in the node')
     parser.add_argument('--master_address', type=str, default='127.0.0.1',
                         help='address for master')
-
-   
+    
     args = parser.parse_args()
     args.world_size = args.num_proc_node * args.num_process_per_node
     size = args.num_process_per_node
-
+    
     if size > 1:
         processes = []
         for rank in range(size):
@@ -598,5 +639,5 @@ if __name__ == '__main__':
         print('starting in debug mode')
         
         init_processes(0, size, train, args)
-   
-                
+    
+#cloner174

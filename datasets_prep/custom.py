@@ -1,49 +1,41 @@
 from torch.utils.data import Dataset
-import SimpleITK as sitk
 from PIL import Image
-import pandas as pd
+import glob
+import os
 
 class DatasetCustom(Dataset):
     
-    def __init__(self, labels_df, transform, class_ ='train'):
+    def __init__(self, data_dir, class_ ='train', transform = None):
+        
         self.class_ = class_
         self.transform = transform
-        labels_df = pd.read_csv(labels_df)
-        self.__load__(labels_df)
-    
-    def __load__(self, labels_df):
-        images_i = []
-        images_path = []
-        for i in range(labels_df[labels_df['Class'] == self.class_].shape[0]):
-            temp_path = labels_df['Path'][labels_df['Class'] == self.class_].iloc[i]
-            number_slices = labels_df['ShapeZiro'][labels_df['Class'] == self.class_].iloc[i]
-            for j in range(number_slices):
-                images_i.append(j)
-                images_path.append(temp_path)
+        self.data_dir = data_dir
+        self.images_all = None
         
-        self.images_i = images_i
-        self.images_path = images_path
-        self.current_image = None
+        self.__prepeare__()
+        
+    
+    def __prepeare__(self):
+        
+        data_path = os.path.join(self.data_dir, self.class_)
+        
+        if not os.path.isdir(data_path):
+            raise FileNotFoundError("The class_ param, should be one of [train, val, test]!")
+        
+        self.images_all =  glob.glob(data_path + "/*/*.jpg")
+        
     
     def __getitem__(self, index):
-        image_path = self.images_path[index]
-        image_i = self.images_i[index]
-        if self.current_image is None or image_i >= (self.current_image.shape[0] - 1) :
-            self.current_image = self.phrase_data(image_path)
-        else:
-            pass
-        image = Image.fromarray(self.current_image[image_i])
+        
+        image_path = self.images_all[index]
+        image = Image.open(image_path)
         image = image.convert("RGB")
-        image = self.transform(image)
+        if self.transform is not None:
+            image = self.transform(image)
+        
         return image, 0
     
     def __len__(self):
-        return len(self.images_path)
+        return len(self.images_all)
     
-    @staticmethod
-    def phrase_data(path):
-        try:
-            image = sitk.ReadImage(path)
-            return sitk.GetArrayFromImage(image)
-        except Exception as e:
-            raise Exception(e)
+#cloner174
