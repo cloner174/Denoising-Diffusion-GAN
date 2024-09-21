@@ -158,7 +158,6 @@ def sample_posterior(coefficients, x_0,x_t, t):
         log_var_clipped = extract(coefficients.posterior_log_variance_clipped, t, x_t.shape)
         return mean, var, log_var_clipped
     
-  
     def p_sample(x_0, x_t, t):
         mean, _, log_var = q_posterior(x_0, x_t, t)
         
@@ -202,9 +201,12 @@ def train(rank, gpu, args):
     nz = args.nz #latent dimension
     
     transform = transforms.Compose([
-        transforms.Resize((args.image_size, args.image_size)),
+        transforms.Resize(args.image_size),
+        transforms.CenterCrop(args.image_size),
+        #transforms.RandomHorizontalFlip(),  # Include if your data can be horizontally flipped
         transforms.ToTensor(),
-        transforms.Normalize((0.5,), (0.5,))
+        #transforms.Normalize((0.5,), (0.5,))  # Use (0.5, 0.5, 0.5) if RGB
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
     
     dataset = DatasetCustom(labels_df = args.labels_df, transform = transform , class_ = args.mode)
@@ -308,7 +310,6 @@ def train(rank, gpu, args):
             x_t, x_tp1 = q_sample_pairs(coeff, real_data, t)
             x_t.requires_grad = True
             
-    
             # train with real
             D_real = netD(x_t, t, x_tp1.detach()).view(-1)
             
@@ -341,16 +342,14 @@ def train(rank, gpu, args):
                 
                     grad_penalty = args.r1_gamma / 2 * grad_penalty
                     grad_penalty.backward()
-
             # train with fake
             latent_z = torch.randn(batch_size, nz, device=device)
             
-         
             x_0_predict = netG(x_tp1.detach(), t, latent_z)
             x_pos_sample = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
             
             output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
-                
+            
             
             errD_fake = F.softplus(output)
             errD_fake = errD_fake.mean()
@@ -361,7 +360,6 @@ def train(rank, gpu, args):
             # Update D
             optimizerD.step()
             
-        
             #update G
             for p in netD.parameters():
                 p.requires_grad = False
@@ -372,26 +370,24 @@ def train(rank, gpu, args):
             
             
             x_t, x_tp1 = q_sample_pairs(coeff, real_data, t)
-                
+            
             
             latent_z = torch.randn(batch_size, nz,device=device)
             
             
-                
-           
+            
             x_0_predict = netG(x_tp1.detach(), t, latent_z)
             x_pos_sample = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
             
             output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
-               
+            
             
             errG = F.softplus(-output)
             errG = errG.mean()
             
             errG.backward()
             optimizerG.step()
-                
-           
+            
             
             global_step += 1
             if iteration % 100 == 0:
@@ -420,11 +416,11 @@ def train(rank, gpu, args):
                                'optimizerD': optimizerD.state_dict(), 'schedulerD': schedulerD.state_dict()}
                     
                     torch.save(content, os.path.join(exp_path, 'content.pth'))
-                
+            
             if epoch % args.save_ckpt_every == 0:
                 if args.use_ema:
                     optimizerG.swap_parameters_with_ema(store_params_in_ema=True)
-                    
+                
                 torch.save(netG.state_dict(), os.path.join(exp_path, 'netG_{}.pth'.format(epoch)))
                 if args.use_ema:
                     optimizerG.swap_parameters_with_ema(store_params_in_ema=True)
