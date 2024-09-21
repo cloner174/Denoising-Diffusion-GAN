@@ -3,6 +3,22 @@ node_modules/
 dist/
 ngc_scripts/
 
+approach.md
+
+data/
+tteesstt/
+
+pso_clustering.py
+index_temp.ipynb
+
+train_gan.py
+train_pure_gan.py
+train.py
+train_2.py
+temp.txt
+
+epoch_loss.txt
+
 # Compiled Java class files
 *.class
 
