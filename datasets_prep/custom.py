@@ -35,7 +35,7 @@ class DatasetCustom(Dataset):
         image = Image.fromarray(self.current_image[image_i])
         image = image.convert("RGB")
         image = self.transform(image)
-        return image
+        return image, 0
     
     def __len__(self):
         return len(self.images_path)
