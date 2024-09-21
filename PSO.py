@@ -3,7 +3,9 @@
 import numpy as np
 import random
 import os
-from ddgan_train_script import main  # Import the main function from your training script
+import shutil
+import multiprocessing
+from final_script import main  # Import the main function from your training script
 
 class Args:
     pass
@@ -17,13 +19,17 @@ class Particle:
         
         # Initialize position and velocity
         for param in search_space:
+            if param == 'step':
+                continue  # Skip the step sizes
             min_val, max_val = search_space[param]
             if isinstance(min_val, int):
-                self.position[param] = random.randint(min_val, max_val)
-                self.velocity[param] = random.uniform(-(max_val - min_val), (max_val - min_val))
+                step = search_space.get('step', {}).get(param, 1)
+                possible_values = list(range(min_val, max_val + 1, step))
+                self.position[param] = random.choice(possible_values)
+                self.velocity[param] = random.uniform(-(max_val - min_val), max_val - min_val)
             else:
                 self.position[param] = random.uniform(min_val, max_val)
-                self.velocity[param] = random.uniform(-(max_val - min_val), (max_val - min_val))
+                self.velocity[param] = random.uniform(-(max_val - min_val), max_val - min_val)
         
         self.best_position = self.position.copy()
         
@@ -41,13 +47,14 @@ class Particle:
             # Apply bounds
             min_val, max_val = search_space[param]
             if isinstance(min_val, int):
-                self.position[param] = int(round(self.position[param]))
+                step = search_space.get('step', {}).get(param, 1)
+                self.position[param] = int(round(self.position[param] / step) * step)
                 self.position[param] = max(min_val, min(self.position[param], max_val))
             else:
                 self.position[param] = max(min_val, min(self.position[param], max_val))
                 
 class PSO:
-    def __init__(self, search_space, num_particles=5, num_iterations=10, c1=2.0, c2=2.0, w=0.7):
+    def __init__(self, search_space, num_particles=10, num_iterations=20, c1=1.5, c2=1.5, w=0.7):
         self.search_space = search_space
         self.num_particles = num_particles
         self.num_iterations = num_iterations
@@ -61,22 +68,34 @@ class PSO:
     def optimize(self):
         for iteration in range(self.num_iterations):
             print(f"Iteration {iteration+1}/{self.num_iterations}")
-            for i, particle in enumerate(self.particles):
-                print(f" Evaluating particle {i+1}/{self.num_particles}")
-                score = evaluate(particle.position)
-                print(f"  Score: {score}")
+            scores = []
+            positions = []
+            # Evaluate particles in parallel
+            pool = multiprocessing.Pool(processes=min(self.num_particles, multiprocessing.cpu_count()))
+            results = []
+            for particle in self.particles:
+                positions.append(particle.position.copy())
+                result = pool.apply_async(evaluate, args=(particle.position,))
+                results.append(result)
+            pool.close()
+            pool.join()
+            for i, result in enumerate(results):
+                score = result.get()
+                particle = self.particles[i]
+                print(f"  Particle {i+1}/{self.num_particles}, Score: {score}")
                 if score < particle.best_score:
                     particle.best_score = score
                     particle.best_position = particle.position.copy()
                 if score < self.global_best_score:
                     self.global_best_score = score
                     self.global_best_position = particle.position.copy()
+            # Update velocities and positions
             for particle in self.particles:
                 particle.update_velocity(self.global_best_position, self.c1, self.c2, self.w)
                 particle.update_position(self.search_space)
             print(f"Global best score: {self.global_best_score}")
             print(f"Global best position: {self.global_best_position}")
-            
+                
 def evaluate(hyperparams):
     args = Args()
     # Set default arguments
@@ -136,7 +155,7 @@ def evaluate(hyperparams):
     args.beta2 = hyperparams['beta2']
 
     # Set other training parameters
-    args.num_epoch = 1  # For quick evaluation
+    args.num_epoch = 5  # Increased epochs for better evaluation
     args.exp = f"pso_eval_{random.randint(0, 1e6)}"
 
     # Run the training
@@ -148,9 +167,17 @@ def evaluate(hyperparams):
     if os.path.exists(loss_file):
         with open(loss_file, 'r') as f:
             loss_str = f.readline().strip()
-        score = float(loss_str)
+        try:
+            score = float(loss_str)
+        except ValueError:
+            score = float('inf')
     else:
         score = float('inf')
+
+    # Clean up experiment directory to save space
+    if os.path.exists(exp_path):
+        shutil.rmtree(exp_path)
+
     return score
 
 if __name__ == '__main__':
@@ -163,9 +190,16 @@ if __name__ == '__main__':
         't_emb_dim': (128, 512),
         'beta1': (0.3, 0.9),
         'beta2': (0.7, 0.999),
+        # Define step sizes for integer parameters
+        'step': {
+            'batch_size': 32,
+            'nz': 10,
+            'ngf': 16,
+            't_emb_dim': 32,
+        }
     }
     
     # Initialize PSO
-    pso = PSO(search_space, num_particles=5, num_iterations=10)
+    pso = PSO(search_space, num_particles=10, num_iterations=20)
     # Run optimization
     pso.optimize()
