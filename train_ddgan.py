@@ -514,6 +514,8 @@ if __name__ == '__main__':
     
     parser.add_argument('--disc_small', type=str, default='yes', help='Use Small Discriminator?', choices=[ 'yes', 'no'])
     
+    parser.add_argument('--data_dir', default='./data', help='path to image files')
+    
     parser.add_argument('--image_size', type=int, default=32,
                             help='size of image')
     parser.add_argument('--num_channels', type=int, default=3,
