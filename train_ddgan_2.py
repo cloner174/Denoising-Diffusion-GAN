@@ -210,7 +210,7 @@ def train(rank, gpu, args):
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
     
-    dataset = DatasetCustom(labels_df = args.labels_df, transform = transform , class_ = args.mode)
+    dataset = DatasetCustom(data_dir = args.data_dir, class_ = args.mode,  transform = transform )
     
     
     try:
@@ -513,7 +513,7 @@ if __name__ == '__main__':
     
     #geenrator and training
     
-    parser.add_argument('--labels_df', type=str, default='labels_df.csv', help='labels_df path')
+    parser.add_argument('--data_dir', type=str, default='./data', help='path to data files')
     
     parser.add_argument('--mode', type=str, default='train', help='train or test or val ?')
     
