@@ -1,15 +1,15 @@
 from torch.utils.data import Dataset
 import SimpleITK as sitk
 from PIL import Image
-
+import pandas as pd
 
 class DatasetCustom(Dataset):
     
     def __init__(self, labels_df, transform, class_ ='train'):
         self.class_ = class_
         self.transform = transform
-        
-        self.__load__(labels_df[labels_df['Class'] == self.class_])
+        labels_df = pd.read_csv(labels_df)
+        self.__load__(labels_df)
     
     def __load__(self, labels_df):
         images_i = []
