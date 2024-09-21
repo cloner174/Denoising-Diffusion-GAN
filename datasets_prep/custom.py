@@ -28,7 +28,7 @@ class DatasetCustom(Dataset):
     def __getitem__(self, index):
         image_path = self.images_path[index]
         image_i = self.images_i[index]
-        if self.current_image is None or image_i >= self.current_image.shape[0]:
+        if self.current_image is None or image_i >= (self.current_image.shape[0] - 1) :
             self.current_image = self.phrase_data(image_path)
         else:
             pass
