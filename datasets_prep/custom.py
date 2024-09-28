@@ -38,4 +38,29 @@ class DatasetCustom(Dataset):
     def __len__(self):
         return len(self.images_all)
     
+
+
+
+class PositivePatchDataset(Dataset):
+    
+    def __init__(self, patch_dir):
+        self.patch_paths = [
+            os.path.join(patch_dir, f) for f in os.listdir(patch_dir)
+            if f.endswith('.npy') and 'label_1' in f
+        ]
+
+    
+    def __len__(self):
+        return len(self.patch_paths)
+
+    
+    def __getitem__(self, idx):
+        patch = np.load(self.patch_paths[idx])
+        # Normalize to [-1, 1] for Tanh activation
+        patch = (patch - 0.5) * 2.0
+        patch = patch.astype(np.float32)
+        patch = np.expand_dims(patch, axis=0)
+        return torch.tensor(patch)
+
+
 #cloner174
