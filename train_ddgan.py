@@ -252,14 +252,13 @@ def train(rank, gpu, args):
         dataset = DatasetCustom(data_dir= args.data_dir, class_ = args.mode, transform = transform )
 
     elif args.dataset == 'pospath':
-        
+        normalize_stat = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) if args.num_channels == 3 else transforms.Normalize((0.5,), (0.5,))
         transform = transforms.Compose([
             transforms.Resize(args.image_size),
             transforms.CenterCrop(args.image_size),
             #transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            #transforms.Normalize((0.5,), (0.5,))
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+            normalize_stat
         ])
         dataset = PositivePatchDataset(data_dir= args.data_dir, transform = transform )
     
