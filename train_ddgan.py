@@ -28,7 +28,7 @@ from torch.multiprocessing import Process
 import torch.distributed as dist
 import shutil
 
-from datasets_prep.custom import DatasetCustom
+from datasets_prep.custom import DatasetCustom, PositivePatchDataset
 
 def copy_source(file, output_dir):
     shutil.copyfile(file, os.path.join(output_dir, os.path.basename(file)))
@@ -250,6 +250,18 @@ def train(rank, gpu, args):
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ])
         dataset = DatasetCustom(data_dir= args.data_dir, class_ = args.mode, transform = transform )
+
+    elif args.dataset == 'pospath':
+        
+        transform = transforms.Compose([
+            transforms.Resize(args.image_size),
+            transforms.CenterCrop(args.image_size),
+            #transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            #transforms.Normalize((0.5,), (0.5,))
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ])
+        dataset = PositivePatchDataset(data_dir= args.data_dir, transform = transform )
     
     try:
         
