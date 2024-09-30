@@ -250,16 +250,23 @@ def train(rank, gpu, args):
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ])
         dataset = DatasetCustom(data_dir= args.data_dir, class_ = args.mode, transform = transform )
-
-    elif args.dataset == 'pospath':
-        normalize_stat = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) if args.num_channels == 3 else transforms.Normalize((0.5,), (0.5,))
-        transform = transforms.Compose([
-            transforms.Resize(args.image_size),
-            transforms.CenterCrop(args.image_size),
-            #transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            normalize_stat
-        ])
+    
+    elif args.dataset == 'posluna':
+        what_should_be = []
+        
+        if hasattr(args, 'do_resize') and args.do_resize == 'yes':
+            what_should_be.append( transforms.Resize(args.image_size) )
+        
+        if hasattr(args, 'use_normalize') and args.use_normalize == 'yes':
+            normalize_stat = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) if args.num_channels == 3 else transforms.Normalize((0.5,), (0.5,))
+            what_should_be.append(normalize_stat)
+        
+        if hasattr(args, 'CenterCrop') and args.CenterCrop == 'yes':
+            what_should_be.append( transforms.CenterCrop(args.image_size) )
+        
+        what_should_be.append( transforms.ToTensor() )
+        
+        transform = transforms.Compose(what_should_be)
         dataset = PositivePatchDataset(data_dir= args.data_dir, transform = transform )
     
     try:
@@ -533,6 +540,11 @@ if __name__ == '__main__':
         
     parser.add_argument('--what_backend', default='nccl',choices=['nccl', 'gloo'], help='backend to use inside init_process_group')
     
+    parser.add_argument('--do_resize', default='no', choices=['yes', 'no'], help='what should be inside transormers!')
+    parser.add_argument('--use_normalize', default='no', choices=['yes', 'no'], help='what should be inside transormers!')
+    parser.add_argument('--CenterCrop', default='no', choices=['yes', 'no'] , help='what should be inside transormers!')
+    
+    
     parser.add_argument('--image_size', type=int, default=32,
                             help='size of image')
     parser.add_argument('--num_channels', type=int, default=3,
@@ -586,9 +598,9 @@ if __name__ == '__main__':
     parser.add_argument('--not_use_tanh', action='store_true',default=False)
     
     #geenrator and training
-    parser.add_argument('--exp', default='experiment_cifar_default', help='name of experiment')
+    parser.add_argument('--exp', default='experiment_luna_default', help='name of experiment')
     
-    parser.add_argument('--dataset', default='custom', help='name of dataset')
+    parser.add_argument('--dataset', default='posluna', help='name of dataset')
     
     parser.add_argument('--nz', type=int, default=100)
     parser.add_argument('--num_timesteps', type=int, default=4)
