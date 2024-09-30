@@ -309,10 +309,10 @@ def train(rank, gpu, args):
     
     optimizerD = optim.Adam(netD.parameters(), lr=args.lr_d, betas = (args.beta1, args.beta2))
     
-    optimizerG = optim.Adam(netG.parameters(), lr=args.lr_g, betas = (args.beta1, args.beta2))
+    optimizerG = optim.Adam(netG.parameters(), lr=args.lr_g, betas=(args.beta1, args.beta2))
     
     if args.use_ema:
-        optimizerG = EMA(optimizerG, ema_decay=args.ema_decay)
+        emaG = EMA(optimizerG, ema_decay=args.ema_decay)
     
     schedulerG = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerG, args.num_epoch, eta_min=1e-5)
     schedulerD = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerD, args.num_epoch, eta_min=1e-5)
@@ -353,6 +353,9 @@ def train(rank, gpu, args):
         netD.load_state_dict(checkpoint['netD_dict'])
         optimizerD.load_state_dict(checkpoint['optimizerD'])
         schedulerD.load_state_dict(checkpoint['schedulerD'])
+        if args.use_ema:
+            emaG.load_state_dict(checkpoint['emaG'])
+        
         global_step = checkpoint['global_step']
         print("=> loaded checkpoint (epoch {})"
                   .format(checkpoint['epoch']))
@@ -461,8 +464,10 @@ def train(rank, gpu, args):
             
             errG.backward()
             optimizerG.step()
-                
-           
+            
+            if args.use_ema:
+                emaG.update()
+
             
             global_step += 1
             if iteration % 100 == 0:
@@ -489,7 +494,8 @@ def train(rank, gpu, args):
                                'netG_dict': netG.state_dict(), 'optimizerG': optimizerG.state_dict(),
                                'schedulerG': schedulerG.state_dict(), 'netD_dict': netD.state_dict(),
                                'optimizerD': optimizerD.state_dict(), 'schedulerD': schedulerD.state_dict()}
-                    
+                    if args.use_ema:
+                        content['emaG'] = emaG.state_dict()
                     torch.save(content, os.path.join(exp_path, 'content.pth'))
                 
             if epoch % args.save_ckpt_every == 0:
