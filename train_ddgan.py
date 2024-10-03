@@ -192,7 +192,7 @@ def sample_from_model(coefficients, generator, n_time, x_init, T, opt):
 def train(rank, gpu, args):
     from score_sde.models.discriminator import Discriminator_small, Discriminator_large
     from score_sde.models.ncsnpp_generator_adagn import NCSNpp
-    from EMA import EMA
+    from ema import EMA
     
     torch.manual_seed(args.seed + rank)
     torch.cuda.manual_seed(args.seed + rank)
@@ -312,7 +312,7 @@ def train(rank, gpu, args):
     optimizerG = optim.Adam(netG.parameters(), lr=args.lr_g, betas=(args.beta1, args.beta2))
     
     if args.use_ema:
-        emaG = EMA(optimizerG, ema_decay=args.ema_decay)
+        emaG = EMA(netG, optimizerG, ema_decay=args.ema_decay, device=device)
     
     schedulerG = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerG, args.num_epoch, eta_min=1e-5)
     schedulerD = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerD, args.num_epoch, eta_min=1e-5)
@@ -466,7 +466,7 @@ def train(rank, gpu, args):
             optimizerG.step()
             
             if args.use_ema:
-                emaG.update()
+                emaG.step()
 
             
             global_step += 1
@@ -505,7 +505,11 @@ def train(rank, gpu, args):
                 torch.save(netG.state_dict(), os.path.join(exp_path, 'netG_{}.pth'.format(epoch)))
                 if args.use_ema:
                     emaG.swap_parameters_with_ema(store_params_in_ema=True)
-            
+    
+    if rank == 0:
+        with open(os.path.join(exp_path, 'final_loss.txt'), 'w') as f:
+            f.write(f"{errG.item()}\n")
+
 
 def init_processes(rank, size, fn, args):
     """ Initialize the distributed environment. """
