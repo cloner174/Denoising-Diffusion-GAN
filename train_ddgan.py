@@ -472,7 +472,7 @@ def train(rank, gpu, args):
             global_step += 1
             if iteration % 100 == 0:
                 if rank == 0:
-                    print('epoch {} iteration{}, G Loss: {}, D Loss: {}'.format(epoch+1,iteration, errG.item(), errD.item()))
+                    print('epoch {} iteration {}, G Loss: {}, D Loss: {}'.format(epoch+1,iteration, errG.item(), errD.item()))
         
         if not args.no_lr_decay:
             
