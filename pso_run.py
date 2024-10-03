@@ -2,6 +2,7 @@ from PSO import PSO
 import argparse
 import json
 
+
 if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
@@ -20,7 +21,7 @@ if __name__ == '__main__':
     
     search_space['step']['batch_size'] = args.batch_size
     
-    pso = PSO(search_space, args.num_particles, args.num_iterations)
+    pso = PSO(search_space, args.num_particles, args.num_iterations, limited_iter = 'no')
     
     pso.optimize()
 

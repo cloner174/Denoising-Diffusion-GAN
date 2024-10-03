@@ -55,7 +55,7 @@ class Particle:
 
 class PSO:
     
-    def __init__(self, search_space, num_particles=10, num_iterations=20, c1=1.5, c2=1.5, w=0.7):
+    def __init__(self, search_space, num_particles=10, num_iterations=20, c1=1.5, c2=1.5, w=0.7, limited_iter = 'no'):
         self.search_space = search_space
         self.num_particles = num_particles
         self.num_iterations = num_iterations
@@ -65,6 +65,9 @@ class PSO:
         self.particles = [Particle(search_space) for _ in range(num_particles)]
         self.global_best_position = {}
         self.global_best_score = float('inf')
+        
+        global limited_iter_
+        limited_iter_ = limited_iter
     
     def optimize(self):
         for iteration in range(self.num_iterations):
@@ -113,6 +116,8 @@ def evaluate(hyperparams):
     # other training parameters
     config['num_epoch'] = 1  # Increased epochs for better evaluation
     config['exp'] = f"pso_eval_{random.randint(0, 1e6)}"
+    
+    config['limited_iter'] = limited_iter_
     
     args = argparse.Namespace(**config)
     

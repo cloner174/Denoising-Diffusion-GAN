@@ -6,6 +6,8 @@ config = {
     'resume': True,
     'num_workers': 2,
     
+    'limited_iter': 'no',   # Choices: 'no', [A Number: int]
+    
     'mode': 'train',  # Choices: 'train', 'test', 'val'
     'disc_small': 'yes',  # Choices: 'yes', 'no'
     

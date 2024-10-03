@@ -367,6 +367,11 @@ def train(rank, gpu, args):
         train_sampler.set_epoch(epoch)
        
         for iteration, (x, y) in enumerate(data_loader):
+            if hasattr(args, 'limited_iter'):
+                if isinstance(args.limited_iter , int):
+                    if iteration > args.limited_iter:
+                        break
+            
             for p in netD.parameters():  
                 p.requires_grad = True  
         
