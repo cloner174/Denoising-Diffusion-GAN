@@ -239,27 +239,26 @@ def train(rank, gpu, args):
         transform = transforms.Compose(what_should_be)
         dataset = PositivePatchDataset(data_dir= args.data_dir, transform = transform )
     
-    try:
-        
-        train_sampler = torch.utils.data.distributed.DistributedSampler(dataset,
-                                                                        num_replicas=args.world_size,
-                                                                        rank=rank,
-                                                                        shuffle=True)
-        data_loader = torch.utils.data.DataLoader(dataset,
-                                                batch_size=batch_size,
-                                                shuffle=False,
-                                                num_workers=args.num_workers,
-                                                pin_memory=True,
-                                                sampler=train_sampler,
-                                                drop_last = True)
-    except Exception as e:
-        import time
-        print('An Error accured when attempting to use Train Sampler:' , e)
-        time.sleep(2)
-        print('Skip using it!')
-        time.sleep(1)
+    # Initialize DataLoader
+    if dist.is_initialized():
+        train_sampler = torch.utils.data.distributed.DistributedSampler(
+            dataset,
+            num_replicas=args.world_size,
+            rank=rank,
+            shuffle=True
+        )
+    else:
         train_sampler = None
-        data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=args.num_workers, drop_last = True)
+    
+    data_loader = torch.utils.data.DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=(train_sampler is None),
+        num_workers=args.num_workers,
+        pin_memory=True,
+        sampler=train_sampler,
+        drop_last=True
+    )
     
     netG = NCSNpp(args).to(device)
     
@@ -285,12 +284,13 @@ def train(rank, gpu, args):
     schedulerG = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerG, args.num_epoch, eta_min=1e-5)
     schedulerD = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerD, args.num_epoch, eta_min=1e-5)
     
-    
-    
-    #ddp
-    netG = nn.parallel.DistributedDataParallel(netG, device_ids=[gpu])
-    netD = nn.parallel.DistributedDataParallel(netD, device_ids=[gpu])
-
+    # DDP
+    if dist.is_initialized():
+        netG = nn.parallel.DistributedDataParallel(netG, device_ids=[gpu])
+        netD = nn.parallel.DistributedDataParallel(netD, device_ids=[gpu])
+    else:
+        netG = netG.to(device)
+        netD = netD.to(device)
     
     exp = args.exp
     parent_dir = "./saved_info/dd_gan/{}".format(args.dataset)
