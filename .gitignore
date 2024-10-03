@@ -2,7 +2,9 @@
 node_modules/
 dist/
 ngc_scripts/
+
 final_script_2.py
+
 approach.md
 
 data/
