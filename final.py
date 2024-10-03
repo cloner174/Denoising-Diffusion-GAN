@@ -506,9 +506,9 @@ def train(rank, gpu, args):
                 if args.use_ema:
                     emaG.swap_parameters_with_ema(store_params_in_ema=True)
     
-    if rank == 0:
-        with open(os.path.join(exp_path, 'final_loss.txt'), 'w') as f:
-            f.write(f"{errG.item()}\n")
+        if rank == 0:
+            with open(os.path.join(exp_path, 'final_loss.txt'), 'w') as f:
+                f.write(f"{errG.item()}\n")
 
 
 def init_processes(rank, size, fn, args):
