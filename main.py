@@ -16,7 +16,7 @@ args.what_backend = 'nccl'      #choices=['nccl', 'gloo'], help='backend to use 
 args.do_resize = 'no'           #   choices=['yes', 'no'], ! transormers Setting !'
 args.use_normalize = 'no'       #   choices=['yes', 'no'], ! transormers Setting !'
 args.CenterCrop = 'no'          #   choices=['yes', 'no'], ! transormers Setting !'
-args.centered = True            # bool:   help='-1,1 scale'
+args.centered = True            #   bool:   help='-1,1 scale'
 
 
 args.dataset = 'posluna'        # choices=['custom', 'posluna']  # help='name of dataset'
