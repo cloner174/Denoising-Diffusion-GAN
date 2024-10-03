@@ -481,23 +481,26 @@ def train(rank, gpu, args):
 
 def init_processes(rank, size, fn, args):
     """ Initialize the distributed environment. """
-    os.environ['MASTER_ADDR'] = args.master_address
-    os.environ['MASTER_PORT'] = '6020'
-    dist.init_process_group(
-        backend = args.what_backend if hasattr(args, 'what_backend') else 'nccl',
-        init_method='env://',
-        rank=rank,
-        world_size=size
-    )
+    if args.world_size > 1:
+        os.environ['MASTER_ADDR'] = args.master_address
+        os.environ['MASTER_PORT'] = '6020'
+        dist.init_process_group(
+            backend = args.what_backend if hasattr(args, 'what_backend') else 'nccl',
+            init_method='env://',
+            rank=rank,
+            world_size=size
+        )
     torch.cuda.set_device(args.local_rank)
     gpu = args.local_rank
     fn(rank, gpu, args)
-    dist.barrier()
-    cleanup()
+    if args.world_size > 1:
+        dist.barrier()
+        cleanup()
 
 
 def cleanup():
-    dist.destroy_process_group()    
+    if dist.is_initialized():
+        dist.destroy_process_group()    
 
 
 def main(args):
@@ -515,12 +518,11 @@ def main(args):
             p = Process(target=init_processes, args=(global_rank, global_size, train, args))
             p.start()
             processes.append(p)
-            
+
         for p in processes:
             p.join()
     else:
         print('starting in debug mode')
-        
         init_processes(0, size, train, args)
 
 
