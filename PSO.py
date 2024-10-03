@@ -3,10 +3,10 @@ import random
 import os
 import shutil
 import multiprocessing
-from final_script_2 import main  #main function from training script
+from final import main  #main function from training script
+import argparse
+from conf_file import config
 
-class Args:
-    pass
 
 class Particle:
     def __init__(self, search_space):
@@ -96,86 +96,25 @@ class PSO:
                 particle.update_position(self.search_space)
             print(f"Global best score: {self.global_best_score}")
             print(f"Global best position: {self.global_best_position}")
-        
     
+
 def evaluate(hyperparams):
     
-    args = Args()
-    
-    # default arguments
-    args.seed = 1024
-    args.resume = False
-    args.num_workers = 2
-    args.mode = 'train'
-    args.disc_small = 'yes'
-    args.what_backend = 'nccl'
-    
-    args.data_dir = '/content/Drive/MyDrive/cloner174/Luna16/data/Slices'
-    args.dataset = 'custom'
-    
-    args.do_resize = 'custom'
-    args.use_normalize = 'custom'
-    args.CenterCrop = 'custom'
-    args.centered = True
-    
-    args.image_size = 64
-    args.num_channels = 1
-    
-    args.use_geometric = False
-    args.beta_min = 0.1
-    args.beta_max = 20.0
-    
-    args.num_channels_dae = 128
-    args.n_mlp = 4
-    args.ch_mult = [1, 2, 2, 2]
-    args.num_res_blocks = 2
-    args.attn_resolutions = (16,)
-    
-    args.dropout = 0.0
-    
-    args.resamp_with_conv = True
-    args.conditional = True
-    args.fir = True
-    args.fir_kernel = [1, 3, 3, 1]
-    args.skip_rescale = True
-    
-    args.resblock_type = 'biggan'
-    args.progressive = 'none'
-    args.progressive_input = 'residual'
-    args.progressive_combine = 'sum'
-    args.embedding_type = 'positional'
-    
-    args.fourier_scale = 16.0
-    args.not_use_tanh = False
-    args.z_emb_dim = 256
-    args.num_timesteps = 1
-    
-    args.no_lr_decay = False
-    args.use_ema = True
-    args.ema_decay = 0.9999
-    args.r1_gamma = 0.02
-    args.lazy_reg = 15
-    
-    args.num_proc_node = 1
-    args.num_process_per_node = 1
-    args.node_rank = 0
-    args.local_rank = 0
-    args.master_address = '127.0.0.1'
-    args.save_content = False
-    
     # hyperparameters from the particle's position
-    args.lr_g = hyperparams['lr_g']
-    args.lr_d = hyperparams['lr_d']
-    args.batch_size = hyperparams['batch_size']
-    args.nz = hyperparams['nz']
-    args.ngf = hyperparams['ngf']
-    args.t_emb_dim = hyperparams['t_emb_dim']
-    args.beta1 = hyperparams['beta1']
-    args.beta2 = hyperparams['beta2']
+    config['lr_g'] = hyperparams['lr_g']
+    config['lr_d'] = hyperparams['lr_d']
+    config['batch_size'] = hyperparams['batch_size']
+    config['nz'] = hyperparams['nz']
+    config['ngf'] = hyperparams['ngf']
+    config['t_emb_dim'] = hyperparams['t_emb_dim']
+    config['beta1'] = hyperparams['beta1']
+    config['beta2'] = hyperparams['beta2']
     
     # other training parameters
-    args.num_epoch = 1  # Increased epochs for better evaluation
-    args.exp = f"pso_eval_{random.randint(0, 1e6)}"
+    config['num_epoch'] = 1  # Increased epochs for better evaluation
+    config['exp'] = f"pso_eval_{random.randint(0, 1e6)}"
+    
+    args = argparse.Namespace(**config)
     
     # Run the training
     main(args)
