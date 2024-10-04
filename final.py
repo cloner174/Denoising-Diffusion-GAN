@@ -362,19 +362,23 @@ def train(rank, gpu, args):
     else:
         global_step, epoch, init_epoch = 0, 0, 0
     
+    limited_iter = None
+    if hasattr(args, 'limited_iter'):
+        if isinstance(args.limited_iter , int):
+            limited_iter = [ i for i in range(args.limited_iter) ]
+        elif isinstance(args.limited_iter , list):
+            limited_iter = args.limited_iter
     
     for epoch in range(init_epoch, args.num_epoch+1):
+        
         train_sampler.set_epoch(epoch)
-       
+        
         for iteration, (x, y) in enumerate(data_loader):
-            if hasattr(args, 'limited_iter'):
-                if isinstance(args.limited_iter , int):
-                    if iteration > args.limited_iter:
-                        break
+            if limited_iter is not None and iteration not in limited_iter:
+                    continue
             
             for p in netD.parameters():  
                 p.requires_grad = True  
-        
             
             netD.zero_grad()
             
