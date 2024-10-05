@@ -3,7 +3,7 @@
 
 config = {
     'seed': 1024,
-    'resume': True,
+    'resume': False,
     'num_workers': 2,
     
     'limited_iter': 'no',   # Choices: 'no', 500, [100,500,2000,3000]  # explain: , A Number: int , or a list of numbers! 
@@ -11,7 +11,7 @@ config = {
     'mode': 'train',  # Choices: 'train', 'test', 'val'
     'disc_small': 'yes',  # Choices: 'yes', 'no'
     
-    'data_dir': './data',
+    'data_dir': '/content/content/all_ones_final',
     
     'what_backend': 'nccl',  # Choices: 'nccl', 'gloo'
     'do_resize': 'no',  # Choices: 'yes', 'no'
@@ -59,21 +59,21 @@ config = {
     'z_emb_dim': 256,
     't_emb_dim': 256,
     
-    'batch_size': 64,
-    'num_epoch': 5,
+    'batch_size': 16,
+    'num_epoch': 2,
     'ngf': 64,
     
-    'lr_g': 0.00001,
-    'lr_d': 0.0001,
-    'beta1': 0.1,
-    'beta2': 0.2,
+    'lr_g': 0.0003,
+    'lr_d': 0.0002,
+    'beta1': 0.0,
+    'beta2': 0.9,
     
     'no_lr_decay': False,  # Corresponds to --no_lr_decay flag
-    'use_ema': False,  # Corresponds to --use_ema flag
+    'use_ema': True,  # Corresponds to --use_ema flag
     'ema_decay': 0.01,
     
-    'r1_gamma': 0.2,
-    'lazy_reg': 10,
+    'r1_gamma':10.0,
+    'lazy_reg': 16,
     
     'save_content': True,  # Corresponds to --save_content flag
     'save_content_every': 1,
