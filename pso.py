@@ -3,7 +3,7 @@ import random
 import os
 import shutil
 import multiprocessing
-from final import main  # main function from training script
+from ddgan import main  # main function from training script
 from configs.conf_file import config
 import argparse
 import json
