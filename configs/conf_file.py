@@ -4,9 +4,9 @@
 config = {
     'seed': 1024,
     'resume': False,
-    'num_workers': 2,
+    'num_workers': 0,# to can run multiprocessing
     
-    'limited_iter': 'no',   # Choices: 'no', 500, [100,500,2000,3000]  # explain: , A Number: int , or a list of numbers! 
+    'limited_iter': [ i for i in range(702) ],   # Choices: 'no', 500, [100,500,2000,3000]  # explain: , A Number: int , or a list of numbers! 
     
     'mode': 'train',  # Choices: 'train', 'test', 'val'
     'disc_small': 'yes',  # Choices: 'yes', 'no'

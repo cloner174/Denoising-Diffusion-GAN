@@ -502,6 +502,7 @@ def cleanup():
 
 #%%
 def main(args):
+    
     args.world_size = args.num_proc_node * args.num_process_per_node
     size = args.num_process_per_node
     

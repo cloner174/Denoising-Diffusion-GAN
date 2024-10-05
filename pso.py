@@ -3,8 +3,8 @@ import random
 import os
 import shutil
 import multiprocessing
-from final import main  #main function from training script
-from conf_file import config
+from final import main  # main function from training script
+from configs.conf_file import config
 import argparse
 import json
 import ast
@@ -12,6 +12,7 @@ import ast
 
 
 class Particle:
+    
     def __init__(self, search_space):
         self.position = {}
         self.velocity = {}
@@ -22,12 +23,14 @@ class Particle:
         for param in search_space:
             if param == 'step':
                 continue
+            
             min_val, max_val = search_space[param]
             if isinstance(min_val, int):
                 step = search_space.get('step', {}).get(param, 1)
                 possible_values = list(range(min_val, max_val + 1, step))
                 self.position[param] = random.choice(possible_values)
                 self.velocity[param] = random.uniform(-(max_val - min_val), max_val - min_val)
+            
             else:
                 self.position[param] = random.uniform(min_val, max_val)
                 self.velocity[param] = random.uniform(-(max_val - min_val), max_val - min_val)
@@ -35,6 +38,7 @@ class Particle:
         self.best_position = self.position.copy()
     
     def update_velocity(self, global_best_position, c1, c2, w, max_velocity = None):
+        
         for param in self.position:
             r1 = random.random()
             r2 = random.random()
@@ -45,6 +49,7 @@ class Particle:
                 self.velocity[param] = max(-max_velocity, min(self.velocity[param], max_velocity))
     
     def update_position(self, search_space):
+        
         for param in self.position:
             self.position[param] += self.velocity[param]
             # bounds
@@ -53,10 +58,10 @@ class Particle:
                 step = search_space.get('step', {}).get(param, 1)
                 self.position[param] = int(round(self.position[param] / step) * step)
                 self.position[param] = max(min_val, min(self.position[param], max_val))
+            
             else:
                 self.position[param] = max(min_val, min(self.position[param], max_val))
     
-
 
 class PSO:
     
@@ -94,6 +99,9 @@ class PSO:
                     score = result.get()
                     particle = self.particles[i]
                     print(f"  Particle {i+1}/{self.num_particles}, Score: {score}")
+                    scores.append(score)
+                    positions.append(particle)
+                    
                     if score < particle.best_score:
                         particle.best_score = score
                         particle.best_position = particle.position.copy()
@@ -105,6 +113,8 @@ class PSO:
             for particle in self.particles:
                 particle.update_velocity(self.global_best_position, self.c1, self.c2, self.w, self.max_velocity)
                 particle.update_position(self.search_space)
+            
+            
             print(f"Global best score: {self.global_best_score}")
             print(f"Global best position: {self.global_best_position}")
             
@@ -112,58 +122,52 @@ class PSO:
                 print("Stopping early due to minimal improvement in global best score.")
                 break
 
+
 def evaluate(hyperparams):
     
-    # multiple seeds for evaluation
-    seeds = [42, 1337, 2023]
+    random.seed(config['seed'])
+    np.random.seed(config['seed'])
     
-    scores = []
-    for seed in seeds:
-        random.seed(seed)
-        np.random.seed(seed)
+    # hyperparameters from the particle's position
+    config['lr_g'] = hyperparams['lr_g']
+    config['lr_d'] = hyperparams['lr_d']
+    config['batch_size'] = hyperparams['batch_size']
+    config['nz'] = hyperparams['nz']
+    config['ngf'] = hyperparams['ngf']
+    config['t_emb_dim'] = hyperparams['t_emb_dim']
+    config['beta1'] = hyperparams['beta1']
+    config['beta2'] = hyperparams['beta2']
+    
+    # other training parameters
+    config['num_epoch'] = 5  # Increased epochs for better evaluation
+    config['exp'] = f"pso_eval_{random.randint(0, 1e6)}"
+    
+    args = argparse.Namespace(**config)
+    
+    # Run the training
+    main(args)
         
-        # hyperparameters from the particle's position
-        config['lr_g'] = hyperparams['lr_g']
-        config['lr_d'] = hyperparams['lr_d']
-        config['batch_size'] = hyperparams['batch_size']
-        config['nz'] = hyperparams['nz']
-        config['ngf'] = hyperparams['ngf']
-        config['t_emb_dim'] = hyperparams['t_emb_dim']
-        config['beta1'] = hyperparams['beta1']
-        config['beta2'] = hyperparams['beta2']
+    # the final Generator loss
+    exp_path = os.path.join("./saved_info/dd_gan", args.dataset, args.exp)
+    loss_file = os.path.join(exp_path, 'final_loss.txt')
+    if os.path.exists(loss_file):
+        with open(loss_file, 'r') as f:
+            loss_str = f.readline().strip()
         
-        # other training parameters
-        config['num_epoch'] = 1  # Increased epochs for better evaluation
-        config['exp'] = f"pso_eval_{random.randint(0, 1e6)}"
+        try:
+            score = float(loss_str)
         
-        config['limited_iter'] = limited_iter
-        
-        args = argparse.Namespace(**config)
-        
-        # Run the training
-        main(args)
-        
-        # the final Generator loss
-        exp_path = os.path.join("./saved_info/dd_gan", args.dataset, args.exp)
-        loss_file = os.path.join(exp_path, 'final_loss.txt')
-        if os.path.exists(loss_file):
-            with open(loss_file, 'r') as f:
-                loss_str = f.readline().strip()
-            
-            try:
-                score = float(loss_str)
-            except ValueError:
-                score = float('inf')
-        else:
+        except ValueError:
             score = float('inf')
-        
-        # clean up experiment directory to save space
-        if os.path.exists(exp_path):
-            shutil.rmtree(exp_path)
-        
-        scores.append(score)
     
-    return np.mean(scores)
+    else:
+        score = float('inf')
+    
+    # clean up experiment directory to save space
+    if os.path.exists(exp_path):
+        shutil.rmtree(exp_path)
+    
+    return np.mean(score)
 
 
 if __name__ == '__main__':
@@ -172,12 +176,11 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--search_space', type=str, default= './search_space_params.json', help= 'Path to Json File for Search-Space Params')
+    parser.add_argument('--search_space', type=str, default= './configs/search_space_params.json', help= 'Path to Json File for Search-Space Params')
     
     parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--num_particles', type=int, default=10)
-    parser.add_argument('--num_iterations', type=int, default=20)
-    parser.add_argument('--limited_iter', type=str|int|bool, default = False)
+    parser.add_argument('--num_iterations', type=int, default=20) 
     
     args = parser.parse_args()
     
@@ -192,18 +195,8 @@ if __name__ == '__main__':
     
     search_space['step']['batch_size'] = args.batch_size
     
-    global limited_iter
-    limited_iter = 'no'
-    if isinstance( args.limited_iter, bool) and args.limited_iter:
-        limited_iter = [ i for i in range(700) ]
-    elif isinstance( args.limited_iter, str):
-        limited_iter = ast.literal_eval(val)
-    elif isinstance( args.limited_iter, int):
-        limited_iter = [ i for i in range(args.limited_iter) ]
-    
     pso = PSO(search_space, args.num_particles, args.num_iterations)
     
     pso.optimize()
 
-#cloner174
 #cloner174
