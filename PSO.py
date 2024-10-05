@@ -75,7 +75,9 @@ class PSO:
         limited_iter_ = limited_iter
     
     def optimize(self):
-        multiprocessing.set_start_method('spawn')
+        if multiprocessing.get_start_method() != 'spawn':
+            multiprocessing.set_start_method('spawn', force=True)
+        
         for iteration in range(self.num_iterations):
             print(f"Iteration {iteration+1}/{self.num_iterations}")
             scores = []
@@ -85,25 +87,20 @@ class PSO:
                 self.w = 0.9 - iteration * (0.5 / self.num_iterations)  # Gradually decrease inertia weight
             
             # evaluate particles in parallel
-            pool = multiprocessing.Pool(processes=min(self.num_particles, multiprocessing.cpu_count()))
-            results = []
-            for particle in self.particles:
-                positions.append(particle.position.copy())
-                result = pool.apply_async(evaluate, args=(particle.position,))
-                results.append(result)
-            
-            pool.close()
-            pool.join()
-            for i, result in enumerate(results):
-                score = result.get()
-                particle = self.particles[i]
-                print(f"  Particle {i+1}/{self.num_particles}, Score: {score}")
-                if score < particle.best_score:
-                    particle.best_score = score
-                    particle.best_position = particle.position.copy()
-                if score < self.global_best_score:
-                    self.global_best_score = score
-                    self.global_best_position = particle.position.copy()
+            with multiprocessing.Pool(processes=min(self.num_particles, multiprocessing.cpu_count())) as pool:
+                results = [pool.apply_async(evaluate, args=(particle.position,)) for particle in self.particles]
+                pool.close()
+                pool.join()
+                for i, result in enumerate(results):
+                    score = result.get()
+                    particle = self.particles[i]
+                    print(f"  Particle {i+1}/{self.num_particles}, Score: {score}")
+                    if score < particle.best_score:
+                        particle.best_score = score
+                        particle.best_position = particle.position.copy()
+                    if score < self.global_best_score:
+                        self.global_best_score = score
+                        self.global_best_position = particle.position.copy()
             
             # Update velocities and positions
             for particle in self.particles:
