@@ -2,7 +2,7 @@
 node_modules/
 dist/
 ngc_scripts/
-
+__pycache__
 final_script_2.py
 
 approach.md
