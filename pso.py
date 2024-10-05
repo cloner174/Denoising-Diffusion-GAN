@@ -4,8 +4,11 @@ import os
 import shutil
 import multiprocessing
 from final import main  #main function from training script
-import argparse
 from conf_file import config
+import argparse
+import json
+import ast
+
 
 
 class Particle:
@@ -57,7 +60,7 @@ class Particle:
 
 class PSO:
     
-    def __init__(self, search_space, num_particles=10, num_iterations=20, c1=1.5, c2=1.5, w=0.7, limited_iter = 'no', do_clamping = False):
+    def __init__(self, search_space, num_particles=10, num_iterations=20, c1=1.5, c2=1.5, w=0.7, do_clamping = False):
         self.search_space = search_space
         self.num_particles = num_particles
         self.num_iterations = num_iterations
@@ -71,12 +74,8 @@ class PSO:
         self.global_best_position = {}
         self.global_best_score = float('inf')
         
-        global limited_iter_
-        limited_iter_ = limited_iter
     
     def optimize(self):
-        if multiprocessing.get_start_method() != 'spawn':
-            multiprocessing.set_start_method('spawn', force=True)
         
         for iteration in range(self.num_iterations):
             print(f"Iteration {iteration+1}/{self.num_iterations}")
@@ -136,8 +135,9 @@ def evaluate(hyperparams):
         # other training parameters
         config['num_epoch'] = 1  # Increased epochs for better evaluation
         config['exp'] = f"pso_eval_{random.randint(0, 1e6)}"
-        config['limited_iter'] = limited_iter_
-    
+        
+        config['limited_iter'] = limited_iter
+        
         args = argparse.Namespace(**config)
         
         # Run the training
@@ -166,4 +166,44 @@ def evaluate(hyperparams):
     return np.mean(scores)
 
 
+if __name__ == '__main__':
+    
+    multiprocessing.set_start_method('spawn', force=True)
+    
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument('--search_space', type=str, default= './search_space_params.json', help= 'Path to Json File for Search-Space Params')
+    
+    parser.add_argument('--batch_size', type=int, default=16)
+    parser.add_argument('--num_particles', type=int, default=10)
+    parser.add_argument('--num_iterations', type=int, default=20)
+    parser.add_argument('--limited_iter', type=str|int|bool, default = False)
+    
+    args = parser.parse_args()
+    
+    with open(args.search_space, 'r') as f:
+        search_space = json.load(f)
+    
+    for key , val in search_space.items():
+        if key == 'step':
+            continue
+        
+        search_space[key] = ast.literal_eval(val)
+    
+    search_space['step']['batch_size'] = args.batch_size
+    
+    global limited_iter
+    limited_iter = 'no'
+    if isinstance( args.limited_iter, bool) and args.limited_iter:
+        limited_iter = [ i for i in range(700) ]
+    elif isinstance( args.limited_iter, str):
+        limited_iter = ast.literal_eval(val)
+    elif isinstance( args.limited_iter, int):
+        limited_iter = [ i for i in range(args.limited_iter) ]
+    
+    pso = PSO(search_space, args.num_particles, args.num_iterations)
+    
+    pso.optimize()
+
+#cloner174
 #cloner174
