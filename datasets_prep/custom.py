@@ -8,11 +8,14 @@ import os
 
 class PositivePatchDataset(Dataset):
     
-    def __init__(self, data_dir, transform=None):
+    def __init__(self, data_dir, transform=None, limited_slices = False):
         
         self.transform = transform
         self.data_dir = data_dir
+        self.limited_slices = limited_slices
+        
         self.slice_info = []  # List of tuples: (npy_file_path, slice_index)
+        
         self._prepare_dataset()
     
     def _prepare_dataset(self):
@@ -29,7 +32,8 @@ class PositivePatchDataset(Dataset):
         for npy_file_path in npy_files:
             #patch = np.load(npy_file_path) همه ی آرایه ها 64 هستند -->> 64*64*64
             num_slices = 64
-            for slice_index in range(num_slices):
+            num_skip = 8 if self.limited_slices else 1
+            for slice_index in range(0, num_slices, num_skip):
                 self.slice_info.append((npy_file_path, slice_index))
     
     def __len__(self):

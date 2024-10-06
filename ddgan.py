@@ -227,7 +227,7 @@ def train(rank, gpu, args):
         what_should_be.append( transforms.ToTensor() )
         
         transform = transforms.Compose(what_should_be)
-        dataset = PositivePatchDataset(data_dir= args.data_dir, transform = transform )
+        dataset = PositivePatchDataset(data_dir= args.data_dir, transform = transform , limited_slices = args.limited_slices)
     
     try:
         

@@ -27,6 +27,9 @@ if __name__ == '__main__':
     parser.add_argument('--config_file', default=None, help='path to config file to be used!')
     parser.add_argument('--data_dir', default = './all_ones_final', help='path to image files')
     
+    parser.add_argument('--limited_slices', default = False, 
+                        help='Whether to use all slices form npy files, or a part of them ?')
+    
     parser.add_argument('--resume', action='store_true',default=False)
     parser.add_argument('--exp', default='exp1', help='name of experiment')
     parser.add_argument('--dataset', default='posluna', help='name of dataset')

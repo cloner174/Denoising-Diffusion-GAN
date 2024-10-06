@@ -29,9 +29,10 @@ if __name__ == '__main__':
 
     parser.add_argument('--config_file', default=None, 
                     help='Path to the configuration file to use. If provided, the arguments from the command line will be ignored. If an error occurs, no defaults will be used, and an exception will be raised.')
-
-    parser.add_argument('--default_config', default=True , help='If True, The args from command line will be ignored! Will use config.file default')
-    parser.add_argument('--config_file', default=None , help= 'path to config file to use, If provided, The args from command line will be ignored. No defaults will be used if an error acured, instead raise !' )
+    
+    parser.add_argument('--limited_slices', default = False, 
+                        help='Whether to use all slices form npy files, or a part of them ?')
+    
     parser.add_argument('--resume', action='store_true',default=False)
     parser.add_argument('--seed', type=int, default=1024,help='seed used for initialization')
     parser.add_argument('--resume', action='store_true',default=False)

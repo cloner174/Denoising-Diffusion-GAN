@@ -7,8 +7,6 @@ import torchvision
 from score_sde.models.ncsnpp_generator_adagn import NCSNpp
 from pytorch_fid.fid_score import calculate_fid_given_paths
 
-from configs.conf_file import config  # the training configuration
-
 
 # Diffusion coefficients functions
 def var_func_vp(t, beta_min, beta_max):

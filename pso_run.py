@@ -1,4 +1,4 @@
-from PSO import PSO
+from pso import PSO
 import argparse
 import json
 import ast

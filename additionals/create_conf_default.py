@@ -13,6 +13,7 @@ if __name__ == "__main__":
     
     conf = {
         'seed': 1024,
+        'limited_slices':False,
         'resume': False,
         'num_workers': 0,
         'limited_iter': 'no',
