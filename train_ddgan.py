@@ -35,7 +35,6 @@ if __name__ == '__main__':
     
     parser.add_argument('--resume', action='store_true',default=False)
     parser.add_argument('--seed', type=int, default=1024,help='seed used for initialization')
-    parser.add_argument('--resume', action='store_true',default=False)
     parser.add_argument('--num_workers', type=int, default=2, help='Number of workers for Data Loader')
     parser.add_argument('--mode', type=str, default='train', help='The mode of experience', choices=['train', 'test', 'val'])
     parser.add_argument('--disc_small', type=str, default='yes', help='Use Small Discriminator?', choices=[ 'yes', 'no'])
@@ -104,6 +103,7 @@ if __name__ == '__main__':
         if os.path.isfile(args.config_file):
             try:
                 config = load_json_to_dict(args.config_file)
+                print(f"Config file is loaded from: {args.config_file}, And will be used!")
             except Exception as e:
                 config = None
                 print(f"There was an error during loading your config file: {args.config_file}, Error: {e}")

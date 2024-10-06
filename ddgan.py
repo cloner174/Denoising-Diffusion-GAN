@@ -23,6 +23,7 @@ import torchvision.transforms as transforms
 from torch.multiprocessing import Process
 import torch.distributed as dist
 import shutil
+import warnings
 
 from datasets_prep.custom import DatasetCustom, PositivePatchDataset
 
@@ -252,6 +253,9 @@ def train(rank, gpu, args):
         data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=args.num_workers, drop_last = True)
         
     
+    if dataset.limited_slices:
+        warnings.warn(f"The Limited-Slices mood, is On! {len(dataset)}")
+    
     netG = NCSNpp(args).to(device)
     
 
@@ -334,8 +338,8 @@ def train(rank, gpu, args):
         train_sampler.set_epoch(epoch)
         
         for iteration, (x, y) in enumerate(data_loader):
-            if limited_iter is not None and iteration not in limited_iter:
-                    continue
+        #    if limited_iter is not None and iteration not in limited_iter:
+        #            continue
             
             for p in netD.parameters():  
                 p.requires_grad = True  

@@ -1,6 +1,6 @@
 import os
 import argparse
-from .utilities import save_dict_to_json
+from utilities import save_dict_to_json
 
 if __name__ == "__main__":
     
@@ -13,7 +13,7 @@ if __name__ == "__main__":
     
     conf = {
         'seed': 1024,
-        'limited_slices':False,
+        'limited_slices':True,
         'resume': False,
         'num_workers': 0,
         'limited_iter': 'no',
