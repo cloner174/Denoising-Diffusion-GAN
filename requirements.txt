@@ -4,7 +4,7 @@ pillow
 matplotlib
 tensorboard
 tensorboardX
-lmdb
+#lmdb
 matplotlib
 scipy
 ninja
