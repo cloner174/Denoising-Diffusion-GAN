@@ -1,5 +1,7 @@
 #
 import os
+import sys
+import json
 import shutil
 import subprocess
 
@@ -115,6 +117,63 @@ def run_bash_command(command):
     
     except subprocess.CalledProcessError as e:
         print(f"Error occurred: {e.stderr}")
+
+
+
+def save_dict_to_json(data, filename, local = False):
+    """
+    Save a dictionary to a JSON file.
+    :param data: Dictionary to save
+    :param filename: Name of the JSON file
+    """
+    with open(filename, 'w') as json_file:
+        json.dump(data, json_file, indent=4)
+    if not local:
+        print(f"Saved config file to: {filename}")
+
+
+def load_json_to_dict(filename, local= False):
+    """
+    Load data from a JSON file to a dictionary.
+    :param filename: Name of the JSON file
+    :return: Loaded dictionary
+    """
+    with open(filename, 'r') as json_file:
+        d = json.load(json_file)
+    
+    if local:
+        return d
+    else:
+        print(f"Config file {filename} has been loaded Successfully!")
+        return d
+
+
+def modify_json_file(filename, modifications):
+    """
+    Load, modify, and save changes to a JSON file.
+    :param filename: Name of the JSON file
+    :param modifications: Dictionary with modifications to apply
+    """
+    data = load_json_to_dict(filename, local = True)
+    data.update(modifications)
+    save_dict_to_json(data, filename, local=True)
+    print(f"Config file {filename} Updated !")
+    print("Changes: ", list(modifications.keys()))
+
+
+def find_python_command():
+    python_path = sys.executable
+    python_command = os.path.basename(python_path)
+    
+    return python_command
+
+def install_package(package_name):
+    try:
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', package_name])
+        print(f"Package '{package_name}' installed successfully.")
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to install package '{package_name}'. Error: {e}")
+        print(f"Try runnig -> pip install {package_name} <-, manually")
 
 
 #copy_file('source.txt', 'destination.txt', replace=False, rename='new_name.txt')

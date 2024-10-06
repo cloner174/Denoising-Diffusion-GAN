@@ -3,12 +3,12 @@ import random
 import os
 import shutil
 import multiprocessing
-from ddgan import main  # main function from training script
-from configs.conf_file import config
 import argparse
 import json
 import ast
 
+from ddgan import main  # main function from training script
+from additionals.utilities import load_json_to_dict, run_bash_command, find_python_command, save_dict_to_json
 
 
 class Particle:
@@ -128,6 +128,10 @@ def evaluate(hyperparams):
     random.seed(config['seed'])
     np.random.seed(config['seed'])
     
+
+    
+    config = load_json_to_dict('./configs/config.json')
+    
     # hyperparameters from the particle's position
     config['lr_g'] = hyperparams['lr_g']
     config['lr_d'] = hyperparams['lr_d']
@@ -146,7 +150,7 @@ def evaluate(hyperparams):
     
     # Run the training
     main(args)
-        
+    
     # the final Generator loss
     exp_path = os.path.join("./saved_info/dd_gan", args.dataset, args.exp)
     loss_file = os.path.join(exp_path, 'final_loss.txt')
@@ -172,17 +176,36 @@ def evaluate(hyperparams):
 
 if __name__ == '__main__':
     
+    
     multiprocessing.set_start_method('spawn', force=True)
     
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--search_space', type=str, default= './configs/search_space_params.json', help= 'Path to Json File for Search-Space Params')
     
+    parser.add_argument('--config_file',  type=str,  default = None, help= 'Path to Json File for configuration ddgan')
+    
     parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--num_particles', type=int, default=10)
     parser.add_argument('--num_iterations', type=int, default=20) 
     
     args = parser.parse_args()
+    
+    config = None
+    if args.config_file is not None and os.path.isfile(args.config_file):
+        try:
+            config = load_json_to_dict(args.config_file)
+            save_dict_to_json(config , filename = './configs/config.json', local=True)
+        
+        except Exception as e:
+            print(f"There was an error during loading your config file: {args.config_file}, Error: {e}")
+            import warnings
+            warnings.warn("This script will use the file './configs/config.json' for all configuration defaults!")
+    
+    if config is None:
+        if not os.path.isfile('./configs/config.json'):
+            run_bash_command( f"{find_python_command()} {os.curdir}/additionals/create_conf_default.py" )
+    
     
     with open(args.search_space, 'r') as f:
         search_space = json.load(f)
