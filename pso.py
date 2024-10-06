@@ -296,5 +296,13 @@ if __name__ == '__main__':
     pso = PSO(search_space, args.num_particles, args.num_iterations)
     
     pso.optimize()
-
+    
+    print("Optimization completed.")
+    
+    with open('best*_*hyperparameters.json', 'a') as f:
+        json.dump(pso.global_best_position, f, indent=4)
+    
+    print("Best hyperparameters found:")
+    print(pso.global_best_position)
+    
 #cloner174
