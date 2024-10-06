@@ -1,6 +1,6 @@
 import os
 import argparse
-from utilities import save_dict_to_json
+from .utilities import save_dict_to_json
 
 if __name__ == "__main__":
     
