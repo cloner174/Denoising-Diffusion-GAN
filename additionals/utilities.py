@@ -148,7 +148,7 @@ def load_json_to_dict(filename, local= False):
         return d
 
 
-def modify_json_file(filename, modifications):
+def modify_json_file(filename, modifications, local = False):
     """
     Load, modify, and save changes to a JSON file.
     :param filename: Name of the JSON file
@@ -157,8 +157,9 @@ def modify_json_file(filename, modifications):
     data = load_json_to_dict(filename, local = True)
     data.update(modifications)
     save_dict_to_json(data, filename, local=True)
-    print(f"Config file {filename} Updated !")
-    print("Changes: ", list(modifications.keys()))
+    if not local:
+        print(f"Config file {filename} Updated !")
+        print("Changes: ", list(modifications.keys()))
 
 
 def find_python_command():

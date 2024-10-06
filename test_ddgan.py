@@ -1,4 +1,3 @@
-#
 import argparse
 import torch
 import numpy as np
@@ -14,8 +13,10 @@ def var_func_vp(t, beta_min, beta_max):
     var = 1.0 - torch.exp(2.0 * log_mean_coeff)
     return var
 
+
 def var_func_geometric(t, beta_min, beta_max):
     return beta_min * ((beta_max / beta_min) ** t)
+
 
 def extract(input_tensor, t, shape):
     out = torch.gather(input_tensor, 0, t)
@@ -23,14 +24,20 @@ def extract(input_tensor, t, shape):
     out = out.reshape(*reshape)
     return out
 
+
 def get_time_schedule(args, device):
+    
     n_timestep = args.num_timesteps
     eps_small = 1e-3
     t = np.linspace(0, 1, n_timestep + 1, dtype=np.float64)
     t = torch.from_numpy(t) * (1.0 - eps_small) + eps_small
+    
     return t.to(device)
 
+
+
 def get_sigma_schedule(args, device):
+    
     n_timestep = args.num_timesteps
     beta_min = args.beta_min
     beta_max = args.beta_max
@@ -51,11 +58,14 @@ def get_sigma_schedule(args, device):
     betas = betas.type(torch.float32)
     sigmas = betas.sqrt()
     a_s = (1.0 - betas).sqrt()
+    
     return sigmas, a_s, betas
+
 
 
 # Posterior coefficients class
 class Posterior_Coefficients:
+    
     def __init__(self, args, device):
         _, _, self.betas = get_sigma_schedule(args, device=device)
         self.betas = self.betas[1:]
@@ -82,7 +92,9 @@ class Posterior_Coefficients:
         )
 
 
+
 def sample_posterior(coefficients, x_0, x_t, t):
+    
     def q_posterior(x_0, x_t, t):
         mean = (
             extract(coefficients.posterior_mean_coef1, t, x_t.shape) * x_0
@@ -128,15 +140,14 @@ def sample_and_test(args):
     
     checkpoint = torch.load(content_path, map_location=device)
     saved_args = checkpoint['args']
-    
     # Update args with saved_args
     saved_args.__dict__.update(vars(args))  # Override with any command-line arguments
     args = saved_args
     
     # Function to normalize images to [0, 1]
     to_range_0_1 = lambda x: (x + 1.0) / 2.0
-    
     netG = NCSNpp(args).to(device)
+    
     ckpt_path = os.path.join(exp_path, f'netG_{args.epoch_id}.pth')
     if not os.path.exists(ckpt_path):
         raise FileNotFoundError(f"Checkpoint {ckpt_path} not found.")
@@ -152,18 +163,15 @@ def sample_and_test(args):
     
     T = get_time_schedule(args, device)
     pos_coeff = Posterior_Coefficients(args, device)
-    
     # Prepare directories
     save_dir = f"./generated_samples/{args.dataset}"
     os.makedirs(save_dir, exist_ok=True)
-    
     if args.compute_fid:
         # For FID computation, we need real images
         # the real images should be in 'real_img_dir'
         real_img_dir = args.real_img_dir
         if not os.path.exists(real_img_dir):
             raise FileNotFoundError(f"Real image directory {real_img_dir} not found.")
-        
         # Generate samples
         total_samples = args.num_fid_samples
         iters_needed = (total_samples + args.batch_size - 1) // args.batch_size
@@ -188,6 +196,15 @@ def sample_and_test(args):
             paths=paths, batch_size=50, device=device, dims=2048
         )
         print(f'FID = {fid}')
+        
+        if args.fid_output_path:
+            output_dir = os.path.dirname(args.fid_output_path)
+            if output_dir and not os.path.exists(output_dir):
+                os.makedirs(output_dir, exist_ok=True)
+            
+            with open(args.fid_output_path, 'w') as f:
+                f.write(f'{fid}\n')
+            #print(f'FID score saved to {args.fid_output_path}')
     
     else:
         # Generate and save sample images
@@ -205,8 +222,10 @@ def sample_and_test(args):
 
 
 if __name__ == '__main__':
+    
     parser = argparse.ArgumentParser(description='DDGAN Testing Parameters')
     parser.add_argument('--seed', type=int, default=1024, help='Random seed')
+    
     parser.add_argument('--compute_fid', action='store_true', help='Compute FID score')
     parser.add_argument('--epoch_id', type=int, default=1000, help='Epoch ID to load checkpoint from')
     parser.add_argument('--real_img_dir', default='./real_images', help='Directory for real images (for FID computation)')
@@ -214,7 +233,10 @@ if __name__ == '__main__':
     parser.add_argument('--exp', default='exp1', help='Experiment name')
     parser.add_argument('--num_fid_samples', type=int, default=5000, help='Number of samples to generate for FID computation')
     
+    parser.add_argument('--fid_output_path', default='./fid_score.txt', help='Path to save the FID score')
+    
     args = parser.parse_args()
+    
     sample_and_test(args)
 
 #cloner174

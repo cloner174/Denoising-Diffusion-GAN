@@ -33,6 +33,26 @@ def npy_to_image(npy_dir, image_dir, image_format='png', normalize=False):
     print("Conversion complete.")
 
 
+def simple_convert(name, image_array, save_path, image_format='png', normalize=False):
+    if normalize:
+        image_array = (image_array - image_array.min()) / (image_array.max() - image_array.min()) * 255
+    
+    image_array = image_array.astype(np.uint8)
+    if image_array.ndim == 2:
+        image = Image.fromarray(image_array, mode='L')
+    elif image_array.ndim == 3:
+        image = Image.fromarray(image_array)
+    else:
+        raise ValueError(f"Unsupported array shape: {image_array.shape}")
+    
+    filename = os.path.split(name)[-1]
+    image_name = filename.replace('.npy', f'.{image_format}')
+    image_path = os.path.join(save_path, image_name)
+    image.save(image_path)
+    
+    return True
+
+
 if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
