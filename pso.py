@@ -11,7 +11,7 @@ import glob
 from ddgan import main  # main function from training script
 
 from additionals.utilities import load_json_to_dict, run_bash_command, find_python_command, \
-    save_dict_to_json, modify_json_file
+    save_dict_to_json, modify_json_file, install_package
 
 from additionals.images import simple_convert
 
@@ -145,6 +145,8 @@ class PSO:
 
 def evaluate(hyperparams, fid_min, fid_max, loss_min, loss_max):
     
+    config = load_json_to_dict('./configs/config.json', local=True)
+    
     random.seed(config['seed'])
     np.random.seed(config['seed'])
     
@@ -231,6 +233,17 @@ def evaluate(hyperparams, fid_min, fid_max, loss_min, loss_max):
 
 if __name__ == '__main__':
     
+    try:
+        import ninja
+    except ModuleNotFoundError:
+        try:
+            run_bash_command("pip install ninja")
+        except:
+            try:
+                run_bash_command(f"{find_python_command()} -m pip install ninja ")
+            except:
+                install_package('ninja')
+    
     multiprocessing.set_start_method('spawn', force=True)
     
     parser = argparse.ArgumentParser("PSO-GAN for LUNA16")
@@ -265,8 +278,6 @@ if __name__ == '__main__':
     config = load_json_to_dict('./configs/config.json', local=True)
     to_add = {'save_dir': args.save_dir}
     modify_json_file('./configs/config.json', to_add, local=True)
-    
-    config = load_json_to_dict('./configs/config.json', local=True)
     
     with open(args.search_space, 'r') as f:
         search_space = json.load(f)
