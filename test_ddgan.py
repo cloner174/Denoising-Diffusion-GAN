@@ -187,9 +187,9 @@ def sample_and_test(args):
             for j, x in enumerate(fake_sample):
                 index = i * args.batch_size + j
                 torchvision.utils.save_image(
-                    x, f'{save_dir}/{index}.png', normalize=False
+                    x, f'{save_dir}/{index}.png', normalize=args.normalize
                 )
-            if i+1 % 100 == 0 :
+            if i+1 / 50 == i+1 // 50 :
                 print(f'Generated batch {i + 1}/{iters_needed}')
         # Compute FID
         paths = [save_dir, real_img_dir]
@@ -203,9 +203,9 @@ def sample_and_test(args):
             if output_dir and not os.path.exists(output_dir):
                 os.makedirs(output_dir, exist_ok=True)
             
-            with open(args.fid_output_path, 'w') as f:
+            with open(args.fid_output_path, 'a') as f:
                 f.write(f'{fid}\n')
-            #print(f'FID score saved to {args.fid_output_path}')
+            print(f'FID score saved to {args.fid_output_path}')
     
     else:
         # Generate and save sample images
@@ -216,8 +216,14 @@ def sample_and_test(args):
             pos_coeff, netG, args.num_timesteps, x_t_1, T, args
         )
         fake_sample = to_range_0_1(fake_sample)
-        save_path = f'./samples_{args.dataset}.png'
-        torchvision.utils.save_image(fake_sample, save_path, normalize=False)
+        
+        save_dir = f"./generated_samples/{args.dataset}"
+        for i, x in enumerate(fake_sample):
+            index = i * args.batch_size + i
+            save_path = os.path.join(save_dir, f'sample_{index}.png')
+            torchvision.utils.save_image(
+                x, save_path, normalize=args.normalize
+            )
         
         print(f'Sample images saved to {save_path}')
 
@@ -227,14 +233,21 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='DDGAN Testing Parameters')
     parser.add_argument('--seed', type=int, default=1024, help='Random seed')
     
+    parser.add_argument('--normalize', default=False, help='Should output norm before save?')
+    
     parser.add_argument('--compute_fid', action='store_true', help='Compute FID score')
+    
     parser.add_argument('--epoch_id', type=int, default=1000, help='Epoch ID to load checkpoint from')
+    
     parser.add_argument('--real_img_dir', default='./real_images', help='Directory for real images (for FID computation)')
+    
+    parser.add_argument('--fid_output_path', default='./fid_score.txt', help='Path to save the FID score')
+    
     parser.add_argument('--dataset', default='posluna', choices=['custom', 'posluna'], help='Dataset name')
     parser.add_argument('--exp', default='exp1', help='Experiment name')
     parser.add_argument('--num_fid_samples', type=int, default=5000, help='Number of samples to generate for FID computation')
     
-    parser.add_argument('--fid_output_path', default='./fid_score.txt', help='Path to save the FID score')
+    
     
     args = parser.parse_args()
     
