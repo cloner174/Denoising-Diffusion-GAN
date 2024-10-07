@@ -1,4 +1,4 @@
-# Official PyTorch implementation of "Tackling the Generative Learning Trilemma with Denoising Diffusion GANs!" ( Specialized for the LUNA16 dataset ) #
+# "Tackling the Generative Learning Trilemma with Denoising Diffusion GANs!" ( Official PyTorch implementation ) #
 
 # [(ICLR 2022 Spotlight Paper)](https://arxiv.org/abs/2112.07804) #
 
