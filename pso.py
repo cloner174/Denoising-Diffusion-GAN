@@ -8,7 +8,7 @@ import json
 import ast
 import glob
 
-from ddgan import main  # main function from training script
+from ddgan import main, cleanup  # main function from training script
 
 from additionals.utilities import load_json_to_dict, run_bash_command, find_python_command, \
     save_dict_to_json, modify_json_file, install_package
@@ -107,12 +107,14 @@ class PSO:
             
             # Evaluate particles sequentially or in parallel
             results = []
-            
+            i_counter = 0
             if self.use_multiprocessing:
                 with multiprocessing.Pool(processes=min(self.num_particles, multiprocessing.cpu_count())) as pool:
                     results = pool.starmap(evaluate, args_list)
             else:
                 for particle_args in args_list:
+                    i_counter += 1
+                    print(f"Particle {i_counter}: ")
                     results.append(evaluate(*particle_args))
             
             for i, (score, fid_score, loss_score) in enumerate(results):
@@ -169,13 +171,18 @@ def evaluate(hyperparams, fid_min, fid_max, loss_min, loss_max):
     config['beta2'] = hyperparams['beta2']
     
     # other training parameters
-    config['num_epoch'] = 1  # Set epochs as needed
+    config['num_epoch'] = 1
     config['exp'] = f"pso_eval_{random.randint(0, int(1e6))}"
     
     args = argparse.Namespace(**config)
 
     # Run the training
     main(args)
+    
+    try:
+        cleanup()
+    except:
+        pass
     
     exp_path = os.path.join("./saved_info/dd_gan", args.dataset, args.exp)
     

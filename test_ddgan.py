@@ -189,7 +189,8 @@ def sample_and_test(args):
                 torchvision.utils.save_image(
                     x, f'{save_dir}/{index}.png', normalize=False
                 )
-            print(f'Generated batch {i + 1}/{iters_needed}')
+            if i+1 % 100 == 0 :
+                print(f'Generated batch {i + 1}/{iters_needed}')
         # Compute FID
         paths = [save_dir, real_img_dir]
         fid = calculate_fid_given_paths(
