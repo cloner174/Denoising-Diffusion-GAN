@@ -71,7 +71,7 @@ class Particle:
 
 class PSO:
     
-    def __init__(self, search_space, num_particles=10, num_iterations=20, c1=1.5, c2=1.5, w=0.7, do_clamping=False):
+    def __init__(self, search_space, num_particles=10, num_iterations=20, c1=1.5, c2=1.5, w=0.7, do_clamping=False,use_multiprocessing = False):
         
         self.search_space = search_space
         self.num_particles = num_particles
@@ -80,10 +80,11 @@ class PSO:
         self.c2 = c2
         self.w = w
         
+        self.use_multiprocessing = use_multiprocessing
         self.max_velocity = 1.0 if do_clamping else None
         
         self.particles = [Particle(search_space) for _ in range(num_particles)]
-        self.global_best_position = {}
+        self.global_best_position = self.particles[0].position.copy()
         self.global_best_score = float('inf')
         
         self.fid_min = float('inf')
@@ -103,9 +104,16 @@ class PSO:
                 self.w = 0.9 - iteration * (0.5 / self.num_iterations)  # Gradually decrease inertia weight
             
             args_list = [(particle.position, self.fid_min, self.fid_max, self.loss_min, self.loss_max) for particle in self.particles]
-            # evaluate particles in parallel
-            with multiprocessing.Pool(processes=min(self.num_particles, multiprocessing.cpu_count())) as pool:
-                results = pool.starmap(evaluate, args_list)
+            
+            # Evaluate particles sequentially or in parallel
+            results = []
+            
+            if self.use_multiprocessing:
+                with multiprocessing.Pool(processes=min(self.num_particles, multiprocessing.cpu_count())) as pool:
+                    results = pool.starmap(evaluate, args_list)
+            else:
+                for particle_args in args_list:
+                    results.append(evaluate(*particle_args))
             
             for i, (score, fid_score, loss_score) in enumerate(results):
                 particle = self.particles[i]
@@ -185,9 +193,9 @@ def evaluate(hyperparams, fid_min, fid_max, loss_min, loss_max):
         current_image = np.load(npy_file_path)
         for slice_index in range(1, min(num_slices, current_image.shape[0]), num_skip):
             try:
-                simple_convert(npy_file_path, current_image[slice_index], temp_path, 'png', True)
-            except:
                 simple_convert(npy_file_path, current_image[slice_index], temp_path, 'png', False)
+            except:
+                simple_convert(npy_file_path, current_image[slice_index], temp_path, 'png', True)
     
     # Run the test script to compute FID
     run_bash_command(f"{find_python_command()} test_ddgan.py --epoch_id {config['num_epoch']} --dataset {config['dataset']} --exp {config['exp']} --real_img_dir {temp_path} --compute_fid --fid_output_path {fid_file}")
@@ -244,7 +252,7 @@ if __name__ == '__main__':
             except:
                 install_package('ninja')
     
-    multiprocessing.set_start_method('spawn', force=True)
+    
     
     parser = argparse.ArgumentParser("PSO-GAN for LUNA16")
     
@@ -258,7 +266,12 @@ if __name__ == '__main__':
     parser.add_argument('--num_particles', type=int, default=10)
     parser.add_argument('--num_iterations', type=int, default=20)
     
+    parser.add_argument('--use_multiprocessing', default=False)
     args = parser.parse_args()
+    
+    if args.use_multiprocessing :
+        print("Starting Use, Multiprocessing")
+        multiprocessing.set_start_method('spawn', force=True)
     
     config = None
     if args.config_file is not None and os.path.isfile(args.config_file):
@@ -293,7 +306,7 @@ if __name__ == '__main__':
     
     search_space['step']['batch_size'] = args.batch_size
     
-    pso = PSO(search_space, args.num_particles, args.num_iterations)
+    pso = PSO(search_space, args.num_particles, args.num_iterations , use_multiprocessing=args.use_multiprocessing)
     
     pso.optimize()
     
