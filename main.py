@@ -51,7 +51,7 @@ if __name__ == '__main__':
             import warnings
             warnings.warn("This script will use the file './configs/config.json' for all configuration defaults!")
     
-    if config is None:
+    if config is None and args.config_file is None :
         if not os.path.isfile('./configs/config.json'):
             run_bash_command( f"{find_python_command()} {os.curdir}/additionals/create_conf_default.py" )
             run_bash_command( f"{find_python_command()} {os.curdir}/additionals/create_conf_default.py --save_dir {config_dir} --filename {config_name}" )

@@ -25,7 +25,7 @@ import torch.distributed as dist
 import shutil
 import warnings
 
-from datasets_prep.custom import DatasetCustom, PositivePatchDataset
+from datasets_prep.custom import DatasetCustom, PositivePatchDataset, Luna16Dataset
 
 def copy_source(file, output_dir):
     shutil.copyfile(file, os.path.join(output_dir, os.path.basename(file)))
@@ -200,38 +200,39 @@ def train(rank, gpu, args):
     
     nz = args.nz #latent dimension
     
+    what_should_be = []
+    
+    if hasattr(args, 'do_resize') and args.do_resize.lower() == 'yes':
+        what_should_be.append( transforms.Resize(args.image_size) )
+    if hasattr(args, 'use_normalize') and args.use_normalize.lower() == 'yes':
+        normalize_stat = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) if args.num_channels == 3 else transforms.Normalize((0.5,), (0.5,))
+        what_should_be.append(normalize_stat)
+    if hasattr(args, 'CenterCrop') and args.CenterCrop.lower() == 'yes':
+        what_should_be.append( transforms.CenterCrop(args.image_size) )
+    if hasattr(args, 'to_tensor_transform') and args.to_tensor_transform.lower() == 'yes':
+        what_should_be.append( transforms.ToTensor() )
+    if len(what_should_be) >= 1 :
+        transform = transforms.Compose(what_should_be)
+    else:
+        transform = None
+    
     if args.dataset == 'custom':
         
-        transform = transforms.Compose([
-            transforms.Resize(args.image_size),
-            transforms.CenterCrop(args.image_size),
-            #transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            #transforms.Normalize((0.5,), (0.5,))
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-        ])
         dataset = DatasetCustom(data_dir= args.data_dir, class_ = args.mode, transform = transform )
     
     elif args.dataset == 'posluna':
-        what_should_be = []
         
-        if hasattr(args, 'do_resize') and args.do_resize == 'yes':
-            what_should_be.append( transforms.Resize(args.image_size) )
-        
-        if hasattr(args, 'use_normalize') and args.use_normalize == 'yes':
-            normalize_stat = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) if args.num_channels == 3 else transforms.Normalize((0.5,), (0.5,))
-            what_should_be.append(normalize_stat)
-        
-        if hasattr(args, 'CenterCrop') and args.CenterCrop == 'yes':
-            what_should_be.append( transforms.CenterCrop(args.image_size) )
-        
-        what_should_be.append( transforms.ToTensor() )
-        
-        transform = transforms.Compose(what_should_be)
         dataset = PositivePatchDataset(data_dir= args.data_dir, transform = transform , limited_slices = args.limited_slices)
     
-    try:
+    elif args.dataset == 'luna16':
+        if hasattr(args, 'bound_expand_limit'):
+            bound_exp_lim = args.bound_expand_limit
+        else:
+            bound_exp_lim = 1 if args.limited_slices else 5
         
+        Luna16Dataset(data_dir = args.data_dir, mask_dir = args.mask_dir, transform = transform, bound_exp_lim = bound_exp_lim)
+    
+    try:
         train_sampler = torch.utils.data.distributed.DistributedSampler(dataset,
                                                                         num_replicas=args.world_size,
                                                                         rank=rank,
@@ -253,13 +254,12 @@ def train(rank, gpu, args):
         data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=args.num_workers, drop_last = True)
         
     
-    if dataset.limited_slices:
+    if hasattr(dataset, 'limited_slices')and dataset.limited_slices:
         warnings.warn(f"The Limited-Slices mood, is On! {len(dataset)}")
     
     netG = NCSNpp(args).to(device)
     
-
-    if args.dataset == 'cifar10' or args.dataset == 'stackmnist' or args.disc_small == 'yes':    
+    if args.disc_small.lower() == 'yes':    
         netD = Discriminator_small(nc = 2*args.num_channels, ngf = args.ngf,
                                t_emb_dim = args.t_emb_dim,
                                act=nn.LeakyReLU(0.2)).to(device)
@@ -281,23 +281,19 @@ def train(rank, gpu, args):
     schedulerG = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerG, args.num_epoch, eta_min=1e-5)
     schedulerD = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerD, args.num_epoch, eta_min=1e-5)
     
-    
-    
     #ddp
     netG = nn.parallel.DistributedDataParallel(netG, device_ids=[gpu])
     netD = nn.parallel.DistributedDataParallel(netD, device_ids=[gpu])
-
     
     exp = args.exp
     parent_dir = "./saved_info/dd_gan/{}".format(args.dataset)
-
+    
     exp_path = os.path.join(parent_dir,exp)
     if rank == 0:
         if not os.path.exists(exp_path):
             os.makedirs(exp_path)
             copy_source(__file__, exp_path)
             shutil.copytree('score_sde/models', os.path.join(exp_path, 'score_sde/models'))
-    
     
     coeff = Diffusion_Coefficients(args, device)
     pos_coeff = Posterior_Coefficients(args, device)
@@ -310,7 +306,6 @@ def train(rank, gpu, args):
         epoch = init_epoch
         netG.load_state_dict(checkpoint['netG_dict'])
         # load G
-        
         optimizerG.load_state_dict(checkpoint['optimizerG'])
         schedulerG.load_state_dict(checkpoint['schedulerG'])
         # load D
