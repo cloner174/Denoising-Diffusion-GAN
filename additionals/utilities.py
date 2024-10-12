@@ -177,6 +177,24 @@ def install_package(package_name):
         print(f"Try runnig -> pip install {package_name} <-, manually")
 
 
+
+def save_slice_info(data, txt_file_path = './slices_info.txt'):
+    with open(txt_file_path, 'w') as txt_file:
+        for item in data:
+            txt_file.write(f'{item[0]}, {item[1]}, {item[2]}\n')
+    
+    return None
+
+
+def load_slice_info(file_path):
+    loaded_data = []
+    with open(file_path, 'r') as txt_file:
+        for line in txt_file:
+            parts = line.strip().split(', ')
+            loaded_data.append((parts[0], parts[1], int(parts[2])))
+    return loaded_data
+
+
 #copy_file('source.txt', 'destination.txt', replace=False, rename='new_name.txt')
 #copy_directory('source_folder', 'destination_folder', replace=False, rename='new_folder')
 #move_file('source.txt', 'destination_folder/destination.txt', replace=True, rename='moved_name.txt')

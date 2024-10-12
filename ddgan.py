@@ -230,7 +230,12 @@ def train(rank, gpu, args):
         else:
             bound_exp_lim = 1 if args.limited_slices else 5
         
-        Luna16Dataset(data_dir = args.data_dir, mask_dir = args.mask_dir, transform = transform, bound_exp_lim = bound_exp_lim)
+        path_to_slices_info = None if not hasattr(args, 'path_to_slices_info') else args.path_to_slices_info
+        dataset = Luna16Dataset(data_dir = args.data_dir, 
+                                mask_dir = args.mask_dir, 
+                                transform = transform, 
+                                bound_exp_lim = bound_exp_lim,
+                                path_to_slices_info= path_to_slices_info)
     
     try:
         train_sampler = torch.utils.data.distributed.DistributedSampler(dataset,

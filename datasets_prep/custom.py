@@ -4,21 +4,31 @@ import glob
 import numpy as np
 import os
 import nibabel as nib
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from additionals.utilities import load_slice_info, save_slice_info
+
 
 
 
 class Luna16Dataset(Dataset):
     
-    def __init__(self, data_dir, mask_dir, transform=None, bound_exp_lim = 5):
+    def __init__(self, data_dir, mask_dir, transform=None, bound_exp_lim = 5, path_to_slices_info = None):
         
         self.transform = transform
         self.data_dir = data_dir
         self.mask_dir = mask_dir
         self.bound_exp_lim = bound_exp_lim
         
-        self.slice_info = []  # List of tuples: ( .nii.gz file path, slice index)
-        self._prepare_dataset()
-        
+        if path_to_slices_info is not None:
+            self.path_to_slice_info = path_to_slices_info
+            self.slice_info = load_slice_info(path_to_slices_info)
+        else:
+            self.slice_info = []  # List of tuples: ( .nii.gz file path, slice index)
+            self._prepare_dataset()
+            save_slice_info(self.slice_info)
     
     def _prepare_dataset(self):
         if not os.path.isdir(self.data_dir):
@@ -33,8 +43,7 @@ class Luna16Dataset(Dataset):
             nii_file_name = os.path.split(nii_file_path)[-1]
             mask_path = os.path.join( self.mask_dir, nii_file_name)
             mask = nib.load(mask_path).get_fdata()
-            indxes = np.nonzero(mask)
-            handled_indexes = self.__handle_edges__(indxes)
+            handled_indexes = self.__handle_edges__(np.nonzero(mask))
             if handled_indexes is None:
                 continue
             else:
