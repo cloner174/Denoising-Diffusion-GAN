@@ -6,6 +6,7 @@ import os
 import nibabel as nib
 import sys
 
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from additionals.utilities import load_slice_info, save_slice_info
@@ -117,6 +118,8 @@ class Luna16Dataset(Dataset):
             image_2d = self.transform(image_2d)
         
         return image_2d, 1  # 'Dummy' label! برای مدل جن نیاز ی به لیبل نیست
+
+
 
 
 

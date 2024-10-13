@@ -2,6 +2,27 @@ import os
 import numpy as np
 from PIL import Image
 import argparse
+from utilities import install_package
+import torchvision.transforms as transforms
+
+
+def _data_transforms_luna16(image_size = 64):
+    """Get data transforms for luna16."""
+    
+    train_transform =  transforms.Compose([
+        transforms.Resize(image_size),
+        transforms.CenterCrop(image_size),
+        transforms.ToTensor(),
+        transforms.Normalize( (0.5,), (0.5,) )
+                    ])
+    
+    valid_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize( (0.5,), (0.5,) )
+    ])
+    
+    return train_transform, valid_transform
+
 
 
 def npy_to_image(npy_dir, image_dir, image_format='png', normalize=False):
@@ -39,7 +60,9 @@ def npy_to_image(npy_dir, image_dir, image_format='png', normalize=False):
                 image_array.save(image_path)
             
             print(f"Saved {image_name}")
+    
     print("Conversion complete.")
+
 
 
 def simple_convert(name, image_array, save_path, image_format='png', normalize=False):
@@ -58,6 +81,67 @@ def simple_convert(name, image_array, save_path, image_format='png', normalize=F
     image_path = os.path.join(save_path, image_name)
     image.save(image_path)
     return True
+
+
+
+
+def nii_to_png_simple(nii_file_path, 
+                      _where_, 
+                      slice_index, 
+                      save_dir = './real_images', 
+                      transform = None):
+    try:
+        import nibabel as nib
+    except ModuleNotFoundError:
+        install_package('nibabel')
+        import nibabel as nib
+    except Exception as e:
+        print("Error Importing NiBabel Lib: ", e)
+        raise
+    
+    patch = nib.load(nii_file_path).get_fdata()
+    
+    if slice_index < 0 or slice_index >= 256:
+        raise IndexError(f"Slice index {slice_index} out of bounds for patch with shape {patch.shape}")
+    if _where_ == 'x':
+        image_2d = patch[ slice_index , : , : ]
+    
+    elif _where_ == 'y':
+        image_2d = patch[ : , slice_index, : ]
+    
+    elif _where_ == 'z':
+        image_2d = patch[ : , : , slice_index ]
+    
+    image_2d = Image.fromarray(image_2d.astype(np.uint8))
+    if transform is not None:
+        image_2d = transform(image_2d)
+    
+    temp_name = os.path.split(nii_file_path)[-1].split('.nii.gz')[0]
+    temp_name += f'_{slice_index}.png'
+    image_2d.save(os.path.join(save_dir, temp_name))
+    return
+
+
+
+def nii_to_png(slices_info, save_dir = './real_images', do_transform_for = 'train'):#can be 'train' or 'val' or 'none'
+    os.makedirs(save_dir, exist_ok=True)
+    
+    if do_transform_for == 'train':
+        transform, _ = _data_transforms_luna16()
+    elif do_transform_for == 'val':
+        _, transform = _data_transforms_luna16()
+    else:
+        transform = None
+    
+    for any_ in slices_info :
+        nii_file_path, _where_, slice = any_
+        nii_to_png_simple(nii_file_path, _where_, slice, save_dir , transform )
+    
+    return
+
+
+
+
 
 
 if __name__ == '__main__':

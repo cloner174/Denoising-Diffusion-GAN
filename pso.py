@@ -11,9 +11,9 @@ import glob
 from ddgan import main, cleanup  # main function from training script
 
 from additionals.utilities import load_json_to_dict, run_bash_command, find_python_command, \
-    save_dict_to_json, modify_json_file, install_package
+    save_dict_to_json, modify_json_file, install_package, load_slice_info
 
-from additionals.images import simple_convert
+from additionals.images import simple_convert, nii_to_png
 
 
 class Particle:
@@ -156,6 +156,16 @@ class PSO:
 def evaluate(hyperparams, fid_min, fid_max, loss_min, loss_max):
     
     config = load_json_to_dict('./configs/config.json', local=True)
+    path_to_slices_info = config.get('path_to_slices_info')
+    if path_to_slices_info is not None:
+        temp_path = os.path.join(config['save_dir'], 'images_from_nii')
+        if os.path.isdir(temp_path) and len(os.listdir(temp_path)) > 100:
+                pass
+        else:
+            slices_info = load_slice_info(path_to_slices_info)
+            nii_to_png(slices_info, save_dir=temp_path)
+    else:
+        raise FileExistsError("Slices Info Can not be empty! Run the train_ddgan.py once before re-running this!")
     
     random.seed(config['seed'])
     np.random.seed(config['seed'])
@@ -172,37 +182,30 @@ def evaluate(hyperparams, fid_min, fid_max, loss_min, loss_max):
     
     # other training parameters
     config['num_epoch'] = 1
-    config['exp'] = f"pso_eval_{random.randint(0, int(1e6))}"
     
-    args = argparse.Namespace(**config)
-
+    num_intial_uniq = random.randint(0, int(1e6))
+    
+    config['exp'] = f"pso_eval_{num_intial_uniq}"
+    
+    name_of_this_config = f'./configs/config_{num_intial_uniq}.json'
+    
+    modify_json_file(name_of_this_config, config, local=True)
+    
+    #args = argparse.Namespace(**config)
     # Run the training
-    main(args)
+    #main(args)
     
-    try:
-        cleanup()
-    except:
-        pass
+    run_bash_command(f"python3 train_ddgan.py --use_config_file True --config_file {name_of_this_config}")
+    
+    #try:
+    #    cleanup()
+    #except:
+    #    pass
     
     exp_path = os.path.join("./saved_info/dd_gan", args.dataset, args.exp)
     
     # use FID score:
-    
     fid_file = os.path.join(exp_path, 'fid_score.txt')
-    
-    temp_path = os.path.join(config['save_dir'], 'images_from_npy')
-    limited_slices = config.get('limited_slices', False)
-    npy_files = glob.glob(os.path.join(config['data_dir'], '*/*.npy'))
-    os.makedirs(temp_path, exist_ok=True)
-    for npy_file_path in npy_files:
-        num_slices = 64
-        num_skip = 7 if limited_slices else 1
-        current_image = np.load(npy_file_path)
-        for slice_index in range(1, min(num_slices, current_image.shape[0]), num_skip):
-            try:
-                simple_convert(npy_file_path, current_image[slice_index], temp_path, 'png', False)
-            except:
-                simple_convert(npy_file_path, current_image[slice_index], temp_path, 'png', True)
     
     # Run the test script to compute FID
     run_bash_command(f"{find_python_command()} test_ddgan.py --epoch_id {config['num_epoch']} --dataset {config['dataset']} --exp {config['exp']} --real_img_dir {temp_path} --compute_fid --fid_output_path {fid_file}")
