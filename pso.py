@@ -7,6 +7,8 @@ import argparse
 import json
 import ast
 import glob
+import torch
+
 
 from ddgan import main, cleanup  # main function from training script
 
@@ -191,21 +193,16 @@ def evaluate(hyperparams, fid_min, fid_max, loss_min, loss_max):
     
     save_dict_to_json(config ,name_of_this_config, local=True)
     
-    #args = argparse.Namespace(**config)
+    args = argparse.Namespace(**config)
     # Run the training
-    #main(args)
+    main(args)
     
-    run_bash_command(f"python3 train_ddgan.py --use_config_file True --config_file {name_of_this_config}")
+    #run_bash_command(f"python3 train_ddgan.py --use_config_file True --config_file {name_of_this_config}")
     
-    #try:
-    #    cleanup()
-    #except:
-    #    pass
-    
-    exp_path = os.path.join("./saved_info/dd_gan", args.dataset, args.exp)
+    exp_path = os.path.join("./saved_info/dd_gan", config['dataset'], config['exp'])
     
     # use FID score:
-    fid_file = os.path.join(exp_path, 'fid_score.txt')
+    fid_file = os.path.join('./saved_info/', f'fid_score_{num_intial_uniq}_.txt')
     
     # Run the test script to compute FID
     run_bash_command(f"{find_python_command()} test_ddgan.py --epoch_id {config['num_epoch']} --dataset {config['dataset']} --exp {config['exp']} --real_img_dir {temp_path} --compute_fid --fid_output_path {fid_file}")
@@ -243,8 +240,8 @@ def evaluate(hyperparams, fid_min, fid_max, loss_min, loss_max):
     
     if os.path.exists(exp_path):
         shutil.rmtree(exp_path)
-    if os.path.exists(temp_path):
-        shutil.rmtree(temp_path)
+    #if os.path.exists(temp_path):
+    #    shutil.rmtree(temp_path)
     
     return score, fid_score, loss_score
 
@@ -276,6 +273,8 @@ if __name__ == '__main__':
     parser.add_argument('--num_particles', type=int, default=10)
     parser.add_argument('--num_iterations', type=int, default=20)
     
+    parser.add_argument('--limited_slices_mood', default=202 )
+    
     parser.add_argument('--use_multiprocessing', default=False)
     args = parser.parse_args()
     
@@ -299,7 +298,8 @@ if __name__ == '__main__':
             run_bash_command(f"{find_python_command()} {os.curdir}/additionals/create_conf_default.py")
     
     config = load_json_to_dict('./configs/config.json', local=True)
-    to_add = {'save_dir': args.save_dir}
+    to_add = {'save_dir': args.save_dir,
+              'limited_slices': 202}
     
     modify_json_file('./configs/config.json', to_add, local=True)
     

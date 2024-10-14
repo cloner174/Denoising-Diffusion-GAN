@@ -203,7 +203,7 @@ def sample_and_test(args):
             if output_dir and not os.path.exists(output_dir):
                 os.makedirs(output_dir, exist_ok=True)
             
-            with open(args.fid_output_path, 'a') as f:
+            with open(args.fid_output_path, 'w') as f:
                 f.write(f'{fid}\n')
             print(f'FID score saved to {args.fid_output_path}')
     

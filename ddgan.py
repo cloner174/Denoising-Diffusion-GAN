@@ -306,7 +306,7 @@ def train(rank, gpu, args):
     
     if args.resume:
         checkpoint_file = os.path.join(exp_path, 'content.pth')
-        checkpoint = torch.load(checkpoint_file, map_location=device)
+        checkpoint = torch.load(checkpoint_file, map_location=device, weights_only=False)
         init_epoch = checkpoint['epoch']
         epoch = init_epoch
         netG.load_state_dict(checkpoint['netG_dict'])
@@ -328,18 +328,22 @@ def train(rank, gpu, args):
     
     limited_iter = None
     if hasattr(args, 'limited_iter'):
+        print("Limited Iter Mood is On!")
         if isinstance(args.limited_iter , int):
             limited_iter = [ i for i in range(args.limited_iter) ]
+            print(args.limited_iter)
         elif isinstance(args.limited_iter , list):
-            limited_iter = args.limited_iter
+            limited_iter = [ i for i in range(int(np.mean(args.limited_iter))) ]
+            print(int(np.mean(args.limited_iter)))
+        print('-----------------')
     
     for epoch in range(init_epoch, args.num_epoch+1):
         
         train_sampler.set_epoch(epoch)
         
         for iteration, (x, y) in enumerate(data_loader):
-        #    if limited_iter is not None and iteration not in limited_iter:
-        #            continue
+            if limited_iter is not None and iteration not in limited_iter:
+                    break
             
             for p in netD.parameters():  
                 p.requires_grad = True  
@@ -528,5 +532,7 @@ def main(args):
         print('starting in debug mode')
         
         init_processes(0, size, train, args)
+    
+    cleanup()
     
 #cloner174
