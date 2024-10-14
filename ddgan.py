@@ -533,6 +533,4 @@ def main(args):
         
         init_processes(0, size, train, args)
     
-    cleanup()
-    
 #cloner174
