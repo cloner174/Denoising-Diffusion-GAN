@@ -158,16 +158,6 @@ class PSO:
 def evaluate(hyperparams, fid_min, fid_max, loss_min, loss_max):
     
     config = load_json_to_dict('./configs/config.json', local=True)
-    path_to_slices_info = config.get('path_to_slices_info')
-    if path_to_slices_info is not None:
-        temp_path = os.path.join(config['save_dir'], 'real_images')
-        if os.path.isdir(temp_path) and len(os.listdir(temp_path)) > 100:
-                pass
-        else:
-            slices_info = load_slice_info(path_to_slices_info)
-            nii_to_png(slices_info, save_dir=temp_path, lim = 1000)
-    else:
-        raise FileExistsError("Slices Info Can not be empty! Run the train_ddgan.py once before re-running this!")
     
     random.seed(config['seed'])
     np.random.seed(config['seed'])
@@ -193,30 +183,49 @@ def evaluate(hyperparams, fid_min, fid_max, loss_min, loss_max):
     
     save_dict_to_json(config ,name_of_this_config, local=True)
     
-    args = argparse.Namespace(**config)
+    #args = argparse.Namespace(**config)
     # Run the training
-    main(args)
+    #main(args)
     
-    #run_bash_command(f"python3 train_ddgan.py --use_config_file True --config_file {name_of_this_config}")
+    try:
+        run_bash_command(f"python3 train_ddgan.py --use_config_file True --config_file {name_of_this_config}")
+    except:
+        return float('inf'), float('inf'), float('inf')
     
     exp_path = os.path.join("./saved_info/dd_gan", config['dataset'], config['exp'])
     
-    # use FID score:
-    fid_file = os.path.join('./saved_info/', f'fid_score_{num_intial_uniq}_.txt')
-    
-    # Run the test script to compute FID
-    run_bash_command(f"{find_python_command()} test_ddgan.py --epoch_id {config['num_epoch']} --dataset {config['dataset']} --exp {config['exp']} --real_img_dir {temp_path} --compute_fid --fid_output_path {fid_file}")
-    
-    # Read FID score
-    if os.path.exists(fid_file):
-        with open(fid_file, 'r') as f:
-            fid_str = f.readline().strip()
-        try:
-            fid_score = float(fid_str)
-        except ValueError:
+    with_FID = config.get('with_FID', False)
+    if with_FID:
+        # use FID score:
+        path_to_slices_info = config.get('path_to_slices_info')
+        if path_to_slices_info is not None:
+            temp_path = os.path.join(config['save_dir'], 'real_images')
+            if os.path.isdir(temp_path) and len(os.listdir(temp_path)) > 100:
+                pass
+            else:
+                slices_info = load_slice_info(path_to_slices_info)
+                nii_to_png(slices_info, save_dir=temp_path, lim = 1000)
+        else:
+            raise FileExistsError("Slices Info Can not be empty! Run the train_ddgan.py once before re-running this!")
+        
+        fid_file = os.path.join('./saved_info/', f'fid_score_{num_intial_uniq}_.txt')
+        # Run the test script to compute FID
+        run_bash_command(f"{find_python_command()} test_ddgan.py --epoch_id {config['num_epoch']} --dataset {config['dataset']} --exp {config['exp']} --real_img_dir {temp_path} --compute_fid --fid_output_path {fid_file}")
+        # Read FID score
+        if os.path.exists(fid_file):
+            with open(fid_file, 'r') as f:
+                fid_str = f.readline().strip()
+            try:
+                fid_score = float(fid_str)
+            except ValueError:
+                fid_score = float('inf')
+        else:
             fid_score = float('inf')
+        
+        fid_range = fid_max - fid_min if fid_max != fid_min else 1
+        normalized_fid = (fid_score - fid_min) / fid_range
     else:
-        fid_score = float('inf')
+        normalized_fid = 0
     
     # Read the final Generator loss
     loss_file = os.path.join(exp_path, 'final_loss.txt')
@@ -230,18 +239,17 @@ def evaluate(hyperparams, fid_min, fid_max, loss_min, loss_max):
     else:
         loss_score = float('inf')
     
-    fid_range = fid_max - fid_min if fid_max != fid_min else 1
+    
     loss_range = loss_max - loss_min if loss_max != loss_min else 1
     
-    normalized_fid = (fid_score - fid_min) / fid_range
     normalized_loss = (loss_score - loss_min) / loss_range
     
     score = normalized_fid + normalized_loss
     
     if os.path.exists(exp_path):
         shutil.rmtree(exp_path)
-    #if os.path.exists(temp_path):
-    #    shutil.rmtree(temp_path)
+    if os.path.isdir('./generated_samples') and len(os.listdir('./generated_samples')) > 100:
+        shutil.rmtree(temp_path)
     
     return score, fid_score, loss_score
 
@@ -275,6 +283,8 @@ if __name__ == '__main__':
     
     parser.add_argument('--limited_slices_mood', default=202 )
     
+    parser.add_argument('--with_FID', default =  True)
+    
     parser.add_argument('--use_multiprocessing', default=False)
     args = parser.parse_args()
     
@@ -299,7 +309,10 @@ if __name__ == '__main__':
     
     config = load_json_to_dict('./configs/config.json', local=True)
     to_add = {'save_dir': args.save_dir,
-              'limited_slices': 202}
+              'limited_iter': 202,
+              'resume': False,
+              'num_workers':0,
+              'with_FID': args.with_FID}
     
     modify_json_file('./configs/config.json', to_add, local=True)
     

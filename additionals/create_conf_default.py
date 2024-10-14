@@ -28,7 +28,7 @@ if __name__ == "__main__":
         'limited_iter': 'no',
         'mode': 'train',
         'disc_small': 'yes',
-        'data_dir': '/content/content/all_ones_final',
+        'data_dir': './data/Ones',
         'what_backend': 'nccl',
         'do_resize': 'no',
         'use_normalize': 'no',

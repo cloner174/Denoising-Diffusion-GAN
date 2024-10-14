@@ -134,9 +134,11 @@ def nii_to_png(slices_info, save_dir = './real_images', only_z = True, lim = Non
     else:
         transform = None
     if lim is not None:
-        if len( os.listdir(save_dir) ) > 1000:
-            return
+            lim = lim if isinstance(lim, int) else 1000
     for any_ in slices_info :
+        if lim is not None:
+            if len( os.listdir(save_dir) ) > lim:
+                return
         nii_file_path, _where_, slice = any_
         nii_to_png_simple(nii_file_path, _where_, slice, only_z, save_dir , transform )
     
