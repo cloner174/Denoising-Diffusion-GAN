@@ -1,5 +1,8 @@
 import os
 import argparse
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
+
 from utilities import save_dict_to_json
 
 if __name__ == "__main__":

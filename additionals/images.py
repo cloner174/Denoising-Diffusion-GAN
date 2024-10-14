@@ -2,7 +2,6 @@ import os
 import numpy as np
 from PIL import Image
 import argparse
-from utilities import install_package
 import torchvision.transforms as transforms
 
 
@@ -88,42 +87,44 @@ def simple_convert(name, image_array, save_path, image_format='png', normalize=F
 def nii_to_png_simple(nii_file_path, 
                       _where_, 
                       slice_index, 
+                      only_z = True,
                       save_dir = './real_images', 
                       transform = None):
     try:
         import nibabel as nib
     except ModuleNotFoundError:
-        install_package('nibabel')
-        import nibabel as nib
-    except Exception as e:
-        print("Error Importing NiBabel Lib: ", e)
-        raise
+        raise ModuleNotFoundError("Please Install NiBabel Lib using: pip install nibabel")
     
     patch = nib.load(nii_file_path).get_fdata()
     
     if slice_index < 0 or slice_index >= 256:
         raise IndexError(f"Slice index {slice_index} out of bounds for patch with shape {patch.shape}")
-    if _where_ == 'x':
-        image_2d = patch[ slice_index , : , : ]
     
-    elif _where_ == 'y':
-        image_2d = patch[ : , slice_index, : ]
-    
-    elif _where_ == 'z':
-        image_2d = patch[ : , : , slice_index ]
+    if only_z:
+        if _where_ == 'z':
+            image_2d = patch[ : , : , slice_index ]
+        else:
+            return
+    else:
+        if _where_ == 'x':
+            image_2d = patch[ slice_index , : , : ]
+        elif _where_ == 'y':
+            image_2d = patch[ : , slice_index, : ]
+        elif _where_ == 'z':
+            image_2d = patch[ : , : , slice_index ]
     
     image_2d = Image.fromarray(image_2d.astype(np.uint8))
     if transform is not None:
         image_2d = transform(image_2d)
     
     temp_name = os.path.split(nii_file_path)[-1].split('.nii.gz')[0]
-    temp_name += f'_{slice_index}.png'
+    temp_name += f'_{_where_}_{slice_index}.png'
     image_2d.save(os.path.join(save_dir, temp_name))
     return
 
 
 
-def nii_to_png(slices_info, save_dir = './real_images', do_transform_for = 'train'):#can be 'train' or 'val' or 'none'
+def nii_to_png(slices_info, save_dir = './real_images', only_z = True, lim = None, do_transform_for = 'none'):#can be 'train' or 'val' or 'none'
     os.makedirs(save_dir, exist_ok=True)
     
     if do_transform_for == 'train':
@@ -132,10 +133,12 @@ def nii_to_png(slices_info, save_dir = './real_images', do_transform_for = 'trai
         _, transform = _data_transforms_luna16()
     else:
         transform = None
-    
+    if lim is not None:
+        if len( os.listdir(save_dir) ) > 1000:
+            return
     for any_ in slices_info :
         nii_file_path, _where_, slice = any_
-        nii_to_png_simple(nii_file_path, _where_, slice, save_dir , transform )
+        nii_to_png_simple(nii_file_path, _where_, slice, only_z, save_dir , transform )
     
     return
 
