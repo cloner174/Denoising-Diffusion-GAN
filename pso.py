@@ -158,12 +158,12 @@ def evaluate(hyperparams, fid_min, fid_max, loss_min, loss_max):
     config = load_json_to_dict('./configs/config.json', local=True)
     path_to_slices_info = config.get('path_to_slices_info')
     if path_to_slices_info is not None:
-        temp_path = os.path.join(config['save_dir'], 'images_from_nii')
+        temp_path = os.path.join(config['save_dir'], 'real_images')
         if os.path.isdir(temp_path) and len(os.listdir(temp_path)) > 100:
                 pass
         else:
             slices_info = load_slice_info(path_to_slices_info)
-            nii_to_png(slices_info, save_dir=temp_path)
+            nii_to_png(slices_info, save_dir=temp_path, lim = 1000)
     else:
         raise FileExistsError("Slices Info Can not be empty! Run the train_ddgan.py once before re-running this!")
     
@@ -300,6 +300,7 @@ if __name__ == '__main__':
     
     config = load_json_to_dict('./configs/config.json', local=True)
     to_add = {'save_dir': args.save_dir}
+    
     modify_json_file('./configs/config.json', to_add, local=True)
     
     with open(args.search_space, 'r') as f:
