@@ -189,7 +189,7 @@ def evaluate(hyperparams, fid_min, fid_max, loss_min, loss_max):
     
     name_of_this_config = f'./configs/config_{num_intial_uniq}.json'
     
-    modify_json_file(name_of_this_config, config, local=True)
+    save_dict_to_json(config ,name_of_this_config, local=True)
     
     #args = argparse.Namespace(**config)
     # Run the training

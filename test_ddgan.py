@@ -243,7 +243,7 @@ if __name__ == '__main__':
     
     parser.add_argument('--fid_output_path', default='./fid_score.txt', help='Path to save the FID score')
     
-    parser.add_argument('--dataset', default='posluna', choices=['custom', 'posluna'], help='Dataset name')
+    parser.add_argument('--dataset', default='posluna', choices=['custom', 'posluna', 'luna16'], help='Dataset name')
     parser.add_argument('--exp', default='exp1', help='Experiment name')
     parser.add_argument('--num_fid_samples', type=int, default=5000, help='Number of samples to generate for FID computation')
     
