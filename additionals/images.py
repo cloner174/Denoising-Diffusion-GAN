@@ -5,20 +5,20 @@ import argparse
 import torchvision.transforms as transforms
 
 
-def _data_transforms_luna16(image_size = 64):
+def _data_transforms_luna16(image_size = 64 , _3d = False):
     """Get data transforms for luna16."""
+    to_do = [transforms.ToTensor()]
+    norm = transforms.Normalize( (0.5,), (0.5,) ) if not _3d else transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     
-    train_transform =  transforms.Compose([
+    to_do_train = to_do.extend([
         transforms.Resize(image_size),
-        transforms.CenterCrop(image_size),
-        transforms.ToTensor(),
-        transforms.Normalize( (0.5,), (0.5,) )
-                    ])
-    
-    valid_transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize( (0.5,), (0.5,) )
+        transforms.CenterCrop(image_size)
     ])
+    to_do_train.append(norm)
+    to_do_val = to_do.extend([norm])
+    train_transform =  transforms.Compose(to_do_train)
+    
+    valid_transform = transforms.Compose(to_do_val)
     
     return train_transform, valid_transform
 

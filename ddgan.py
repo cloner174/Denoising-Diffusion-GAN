@@ -235,7 +235,12 @@ def train(rank, gpu, args):
                                 mask_dir = args.mask_dir, 
                                 transform = transform, 
                                 bound_exp_lim = bound_exp_lim,
-                                path_to_slices_info= path_to_slices_info)
+                                path_to_slices_info= path_to_slices_info,
+                                
+                                _3d = True if hasattr(args, 'use_3d_mode') and args.use_3d_mode else False,
+                                bounders = args.num_channels,
+                                single_axis = args.limited_slices,
+                                _where = args.axis_for_limit)
     
     try:
         train_sampler = torch.utils.data.distributed.DistributedSampler(dataset,

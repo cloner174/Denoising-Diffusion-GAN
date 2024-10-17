@@ -281,9 +281,10 @@ if __name__ == '__main__':
     parser.add_argument('--num_particles', type=int, default=10)
     parser.add_argument('--num_iterations', type=int, default=20)
     
-    parser.add_argument('--limited_slices_mood', default=202 )
+    parser.add_argument('--limited_itteration_mood', default=202 )
     
     parser.add_argument('--with_FID', default =  True)
+    parser.add_argument('--resume', default =  False)
     
     parser.add_argument('--use_multiprocessing', default=False)
     args = parser.parse_args()
@@ -309,8 +310,8 @@ if __name__ == '__main__':
     
     config = load_json_to_dict('./configs/config.json', local=True)
     to_add = {'save_dir': args.save_dir,
-              'limited_iter': 202,
-              'resume': False,
+              'limited_iter': args.limited_itteration_mood,
+              'resume': args.resume,
               'num_workers':0,
               'with_FID': args.with_FID}
     

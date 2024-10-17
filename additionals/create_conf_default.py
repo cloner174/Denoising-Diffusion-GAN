@@ -21,6 +21,8 @@ if __name__ == "__main__":
         "mask_dir": "./data/Masks/processed_masks",
         "to_tensor_transform": "yes",
         "bound_expand_limit": 0,
+        "axis_for_limit": "z",
+        "use_3d_mode": False,
         "path_to_slices_info" : 'configs/slices_info_Zonly.txt',
         'limited_slices':True,
         'resume': False,
