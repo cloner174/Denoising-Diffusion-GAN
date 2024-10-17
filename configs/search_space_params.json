@@ -12,7 +12,5 @@
     "beta_min": [0.0, 1.0],
     "beta_max": [0.0, 1.0],
     "dropout": [0.0, 0.5],
-    "step": {
-        "batch_size": 16
-    }
+    "step": {}
 }

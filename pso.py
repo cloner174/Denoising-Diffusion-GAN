@@ -17,7 +17,6 @@ import random
 import shutil
 import argparse
 import json
-import ast
 import multiprocessing
 from typing import Dict, Tuple, List
 
@@ -566,6 +565,8 @@ def main():
     """
     Main function to parse arguments and run the PSO optimizer.
     """
+    global logger  # Declare logger as global to modify it within this function
+    
     install_ninja()
     
     parser = argparse.ArgumentParser("PSO-GAN for LUNA16")
@@ -576,8 +577,6 @@ def main():
                         help='Path to JSON file for DDGAN configuration')
     parser.add_argument('--save_dir', type=str, default='./converted_images',
                         help='Path to save images generated during FID score computation')
-    parser.add_argument('--batch_size', type=int, default=16,
-                        help='Initial batch size to use (step size is defined in search_space_params.json)')
     parser.add_argument('--num_particles', type=int, default=10,
                         help='Number of particles in the swarm')
     parser.add_argument('--num_iterations', type=int, default=20,
@@ -590,6 +589,9 @@ def main():
     parser.add_argument('--log_file', type=str, default='pso_gan_optimization.log',
                         help='Path to the log file')
     parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
+    parser.add_argument('--batch_size', type=int, default=8,
+                        help='Initial batch size to use')
+    parser.add_argument('--num_workers', type=int, default=2, help='Number of workers for data loading')
     
     args = parser.parse_args()
     
@@ -623,6 +625,8 @@ def main():
         'save_dir': args.save_dir,
         'limited_iter': args.limited_iteration_mode,
         'resume': args.resume,
+        'distributed': False,
+        'batch_size': args.batch_size,
         'num_workers': 0,
         'with_FID': args.with_FID,
         'seed': args.seed  # Ensure seed is included
@@ -634,11 +638,10 @@ def main():
         search_space = json.load(f)
     
     # Adjust search space parsing
-    # Remove ast.literal_eval since search_space now contains lists
-    if 'step' not in search_space:
-        search_space['step'] = {}
-    
-    search_space['step']['batch_size'] = args.batch_size
+    # Remove 'batch_size' from search_space if present
+    search_space.pop('batch_size', None)
+    if 'step' in search_space:
+        search_space['step'].pop('batch_size', None)
     
     # initialize PSO
     pso = PSO(
@@ -667,3 +670,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+#cloner174
