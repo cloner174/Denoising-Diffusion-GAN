@@ -1,4 +1,4 @@
-# in the name of God
+# In the name of God
 #
 """
 PSO-GAN Hyperparameter Optimization Script
@@ -23,6 +23,8 @@ from typing import Dict, Tuple, List
 
 import numpy as np
 import torch
+import logging
+import subprocess
 
 from ddgan import main, cleanup
 
@@ -39,23 +41,121 @@ from additionals.utilities import (
 from additionals.images import nii_to_png
 
 
+def setup_logger(log_file: str = 'pso_gan_optimization.log'):
+    """
+    Sets up the logger to output logs to both console and a file.
+    
+    Args:
+        log_file (str): The filename for the log file.
+    """
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    
+    # Remove any existing handlers to prevent duplicate logs
+    if logger.hasHandlers():
+        logger.handlers.clear()
+    
+    # Formatter to include time, level, and message
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    
+    # File handler
+    fh = logging.FileHandler(log_file)
+    fh.setLevel(logging.INFO)
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+    
+    # Stream handler (console)
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(logging.INFO)
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+    
+    return logger
+
+
+# Initialize logger
+logger = setup_logger()
+
+
+def set_random_seeds(seed: int = 42):
+    """
+    Set random seeds for reproducibility.
+    
+    Args:
+        seed (int): The seed value.
+    """
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    # Ensures that CUDA selects the same algorithms each time
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
+def run_bash_command(command: str) -> None:
+    """
+    Executes a bash command and logs its output.
+    
+    Args:
+        command (str): The command to execute.
+    
+    Raises:
+        RuntimeError: If the command execution fails.
+    """
+    logger.info(f"Executing command: {command}")
+    try:
+        # Execute the command
+        process = subprocess.Popen(
+            command,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True  # Ensures the output is string, not bytes
+        )
+        
+        # Stream the output and error in real-time
+        while True:
+            output = process.stdout.readline()
+            error = process.stderr.readline()
+            if output:
+                logger.info(output.strip())
+            if error:
+                logger.error(error.strip())
+            if output == '' and error == '' and process.poll() is not None:
+                break
+        
+        # Check for return code
+        return_code = process.poll()
+        if return_code != 0:
+            raise RuntimeError(f"Command failed with return code {return_code}")
+    
+    except Exception as e:
+        logger.error(f"An error occurred while executing the command: {e}")
+        raise
+
+
 class Particle:
     """
     Represents a particle in the PSO algorithm.
     """
-    def __init__(self, search_space: Dict):
+    def __init__(self, search_space: Dict, seed: int = 42):
         """
         Initialize a Particle with random position and velocity within the search space.
         
         Args:
             search_space (dict): Dictionary defining the hyperparameter search space.
+            seed (int): Seed for reproducibility.
         """
+        self.seed = seed
+        set_random_seeds(self.seed)
+        
         self.position = {}
         self.velocity = {}
         self.best_position = {}
         self.best_score = float('inf')
         
-        # initialize position and velocity for each hyperparameter
+        # Initialize position and velocity for each hyperparameter
         for param, bounds in search_space.items():
             if param == 'step':
                 continue
@@ -90,7 +190,7 @@ class Particle:
             social_velocity = c2 * r2 * (global_best_position[param] - self.position[param])
             self.velocity[param] = w * self.velocity[param] + cognitive_velocity + social_velocity
             
-            # apply velocity clamping if specified
+            # Apply velocity clamping if specified
             if max_velocity is not None:
                 self.velocity[param] = max(-max_velocity, min(self.velocity[param], max_velocity))
     
@@ -127,7 +227,8 @@ class PSO:
         c2: float = 1.5,
         w: float = 0.7,
         do_clamping: bool = False,
-        use_multiprocessing: bool = False
+        use_multiprocessing: bool = False,
+        seed: int = 42
     ):
         """
         Initialize the PSO optimizer.
@@ -140,6 +241,7 @@ class PSO:
             w (float): Inertia weight.
             do_clamping (bool): Whether to clamp velocities.
             use_multiprocessing (bool): Whether to use multiprocessing for evaluation.
+            seed (int): Seed for reproducibility.
         """
         
         self.search_space = search_space
@@ -152,7 +254,11 @@ class PSO:
         self.use_multiprocessing = use_multiprocessing
         self.max_velocity = 1.0 if do_clamping else None
         
-        self.particles = [Particle(search_space) for _ in range(num_particles)]
+        self.seed = seed
+        set_random_seeds(self.seed)
+        
+        # Initialize particles with unique seeds
+        self.particles = [Particle(search_space, seed=self.seed + i) for i in range(num_particles)]
         self.global_best_position = self.particles[0].position.copy()
         self.global_best_score = float('inf')
     
@@ -163,74 +269,85 @@ class PSO:
         prev_global_best_score = float('inf')
         for iteration in range(self.num_iterations):
             
-            print(f"Iteration {iteration + 1}/{self.num_iterations}")
+            logger.info(f"Iteration {iteration + 1}/{self.num_iterations}")
             if self.max_velocity is not None:
-                # gradually decrease inertia weight
+                # Gradually decrease inertia weight (Linear Decreasing Inertia Weight)
                 self.w = 0.9 - iteration * (0.5 / self.num_iterations)
+                self.w = max(self.w, 0.4)  # Ensure w does not go below 0.4
+                logger.info(f"Updated inertia weight: {self.w:.4f}")
             
-            # arguments for evaluation
+            # Arguments for evaluation
             positions = [particle.position for particle in self.particles]
             
-            # evaluate particles
+            # Assign unique seeds for each evaluation
+            seeds = [self.seed + i + iteration * self.num_particles for i in range(self.num_particles)]
+            
+            # Evaluate particles
             if self.use_multiprocessing:
                 with multiprocessing.Pool(processes=min(self.num_particles, multiprocessing.cpu_count())) as pool:
-                    results = pool.map(evaluate_wrapper, positions)
+                    results = pool.starmap(evaluate_wrapper, zip(positions, seeds))
             else:
                 results = []
-                for i, position in enumerate(positions):
-                    print(f"Evaluating particle {i + 1}/{self.num_particles}")
-                    result = evaluate(position)
+                for i, (position, seed) in enumerate(zip(positions, seeds)):
+                    logger.info(f"Evaluating particle {i + 1}/{self.num_particles}")
+                    result = evaluate(position, seed=seed)
                     results.append(result)
             
-            # update particles
+            # Update particles
             for i, particle in enumerate(self.particles):
                 
                 score = results[i]
-                print(f"Particle {i + 1}/{self.num_particles}, Score: {score}")
+                logger.info(f"Particle {i + 1}/{self.num_particles}, Score: {score}")
                 
-                # update particle's best score and position
+                # Update particle's best score and position
                 if score < particle.best_score:
                     particle.best_score = score
                     particle.best_position = particle.position.copy()
+                    logger.info(f"Particle {i + 1} found a new best position.")
                 
-                # update global best
+                # Update global best
                 if score < self.global_best_score:
                     self.global_best_score = score
                     self.global_best_position = particle.position.copy()
+                    logger.info(f"Global best updated by particle {i + 1}.")
             
-            # update velocities and positions
+            # Update velocities and positions
             for particle in self.particles:
                 particle.update_velocity(self.global_best_position, self.c1, self.c2, self.w, self.max_velocity)
                 particle.update_position(self.search_space)
             
-            print(f"Global best score: {self.global_best_score}")
-            print(f"Global best position: {self.global_best_position}")
+            logger.info(f"Global best score: {self.global_best_score}")
+            logger.info(f"Global best position: {self.global_best_position}")
+            
+            # Early stopping if improvement is minimal
             if iteration > 5 and abs(prev_global_best_score - self.global_best_score) < 1e-3:
-                print("Stopping early due to minimal improvement in global best score.")
+                logger.info("Stopping early due to minimal improvement in global best score.")
                 break
             
             prev_global_best_score = self.global_best_score
 
 
-def evaluate_wrapper(hyperparams: Dict) -> float:
+def evaluate_wrapper(hyperparams: Dict, seed: int) -> float:
     """
     Wrapper function for multiprocessing to evaluate hyperparameters.
     
     Args:
         hyperparams (dict): Hyperparameters to evaluate.
+        seed (int): Seed for reproducibility.
     
     Returns:
         float: Combined normalized score.
     """
-    return evaluate(hyperparams)
+    return evaluate(hyperparams, seed=seed)
 
 
-def evaluate(hyperparams: Dict) -> float:
+def evaluate(hyperparams: Dict, seed: int) -> float:
     """
     Evaluate the given hyperparameters by training the GAN and computing the score.
     
     Args:
         hyperparams (dict): Hyperparameters to evaluate.
+        seed (int): Seed for reproducibility.
     
     Returns:
         float: Combined normalized score (lower is better).
@@ -243,10 +360,8 @@ def evaluate(hyperparams: Dict) -> float:
     exp_path = os.path.join("./saved_info/dd_gan", config['dataset'], config['exp'])
     
     try:
-        seed = config.get('seed', 42)
-        random.seed(seed)
-        np.random.seed(seed)
-        torch.manual_seed(seed)
+        # Set seeds for reproducibility
+        set_random_seeds(seed)
         
         # training
         run_training(config_path)
@@ -270,7 +385,7 @@ def evaluate(hyperparams: Dict) -> float:
         score = (loss_weight * normalized_loss) + (fid_weight * normalized_fid)
     
     except Exception as e:
-        print(f"Evaluation failed: {e}")
+        logger.error(f"Evaluation failed: {e}")
         score = float('inf')
     
     finally:
@@ -278,7 +393,6 @@ def evaluate(hyperparams: Dict) -> float:
         cleanup_experiment(config, unique_id)
     
     return score
-
 
 
 def prepare_config(base_config_path: str, hyperparams: Dict, unique_id: int) -> Tuple[str, Dict]:
@@ -297,12 +411,12 @@ def prepare_config(base_config_path: str, hyperparams: Dict, unique_id: int) -> 
     config.update(hyperparams)
     config['exp'] = f"pso_eval_{unique_id}"
     config['num_epoch'] = 1  # Set epochs to 1 for quick evaluation
+    config['seed'] = config.get('seed', 42)  # Ensure seed is present
     
     new_config_path = f'./configs/config_{unique_id}.json'
     save_dict_to_json(config, new_config_path, local=True)
     
     return new_config_path, config
-
 
 
 def run_training(config_path: str):
@@ -324,7 +438,6 @@ def run_training(config_path: str):
         raise RuntimeError(f"Training failed with error: {e}")
 
 
-
 def compute_loss(exp_path: str) -> float:
     """
     Compute the generator loss from the training output.
@@ -343,7 +456,6 @@ def compute_loss(exp_path: str) -> float:
         loss_score = float('inf')
     
     return loss_score
-
 
 
 def compute_fid_score(config: Dict, unique_id: int) -> float:
@@ -387,7 +499,6 @@ def compute_fid_score(config: Dict, unique_id: int) -> float:
         fid_score = float('inf')  # Assign a high value if FID score is not found
     
     return fid_score
-
 
 
 def normalize_score(score: float, score_min: float, score_max: float) -> float:
@@ -465,29 +576,44 @@ def main():
                         help='Path to JSON file for DDGAN configuration')
     parser.add_argument('--save_dir', type=str, default='./converted_images',
                         help='Path to save images generated during FID score computation')
-    parser.add_argument('--batch_size', type=int, default=16)
-    parser.add_argument('--num_particles', type=int, default=10)
-    parser.add_argument('--num_iterations', type=int, default=20)
-    parser.add_argument('--limited_iteration_mode', type=int, default=202)
+    parser.add_argument('--batch_size', type=int, default=16,
+                        help='Initial batch size to use (step size is defined in search_space_params.json)')
+    parser.add_argument('--num_particles', type=int, default=10,
+                        help='Number of particles in the swarm')
+    parser.add_argument('--num_iterations', type=int, default=20,
+                        help='Number of iterations to perform')
+    parser.add_argument('--limited_iteration_mode', type=int, default=202,
+                        help='Limited iteration mode parameter')
     parser.add_argument('--with_FID', action='store_true', help='Compute FID score during evaluation')
     parser.add_argument('--resume', action='store_true', help='Resume training from a checkpoint')
     parser.add_argument('--use_multiprocessing', action='store_true', help='Use multiprocessing during evaluation')
+    parser.add_argument('--log_file', type=str, default='pso_gan_optimization.log',
+                        help='Path to the log file')
+    parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
     
     args = parser.parse_args()
     
+    # Reconfigure logger if a different log file is specified
+    if args.log_file != 'pso_gan_optimization.log':
+        logger.handlers.clear()
+        logger = setup_logger(log_file=args.log_file)
+    
     if args.use_multiprocessing:
-        print("Starting with multiprocessing")
+        logger.info("Starting with multiprocessing")
         multiprocessing.set_start_method('spawn', force=True)
+    
+    # Set the global seed
+    set_random_seeds(args.seed)
     
     # load or create configuration
     if args.config_file and os.path.isfile(args.config_file):
         
         config = load_json_to_dict(args.config_file, local=True)
         save_dict_to_json(config, filename='./configs/config.json', local=True)
-        print(f"Config file loaded from: {args.config_file}")
+        logger.info(f"Config file loaded from: {args.config_file}")
     else:
         if not os.path.isfile('./configs/config.json'):
-            print("No config file provided. Using default configuration.")
+            logger.info("No config file provided. Using default configuration.")
             run_bash_command(f"{find_python_command()} {os.curdir}/additionals/create_conf_default.py")
         
         config = load_json_to_dict('./configs/config.json', local=True)
@@ -498,7 +624,8 @@ def main():
         'limited_iter': args.limited_iteration_mode,
         'resume': args.resume,
         'num_workers': 0,
-        'with_FID': args.with_FID
+        'with_FID': args.with_FID,
+        'seed': args.seed  # Ensure seed is included
     }
     modify_json_file('./configs/config.json', to_add, local=True)
     
@@ -506,12 +633,8 @@ def main():
     with open(args.search_space, 'r') as f:
         search_space = json.load(f)
     
-    for key, val in search_space.items():
-        if key == 'step':
-            continue
-        
-        search_space[key] = ast.literal_eval(val)
-    
+    # Adjust search space parsing
+    # Remove ast.literal_eval since search_space now contains lists
     if 'step' not in search_space:
         search_space['step'] = {}
     
@@ -522,7 +645,12 @@ def main():
         search_space=search_space,
         num_particles=args.num_particles,
         num_iterations=args.num_iterations,
-        use_multiprocessing=args.use_multiprocessing
+        c1=1.5,
+        c2=1.5,
+        w=0.7,
+        do_clamping=True,  # Enable clamping if desired
+        use_multiprocessing=args.use_multiprocessing,
+        seed=args.seed
     )
     
     # run optimization
@@ -532,12 +660,10 @@ def main():
     with open('best_hyperparameters.json', 'w') as f:
         json.dump(pso.global_best_position, f, indent=4)
     
-    print("Optimization completed.")
-    print("Best hyperparameters found:")
-    print(pso.global_best_position)
+    logger.info("Optimization completed.")
+    logger.info("Best hyperparameters found:")
+    logger.info(json.dumps(pso.global_best_position, indent=4))
 
 
 if __name__ == '__main__':
     main()
-
-#cloner174

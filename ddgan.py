@@ -440,7 +440,7 @@ def train(rank, gpu, args):
             
             global_step += 1
             if iteration % 100 == 0 and rank == 0:
-                print(f'Epoch {epoch + 1}, Iteration {iteration}, G Loss: {errG.item():.4f}, D Loss: {errD.item():.4f}')
+                print(f'Epoch {epoch + 1}, Iteration {iteration}, G Loss: {errG.item():.8f}, D Loss: {errD.item():.8f}')
         
         if not args.no_lr_decay:
             schedulerG.step()
