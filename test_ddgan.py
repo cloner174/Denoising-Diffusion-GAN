@@ -169,9 +169,12 @@ def sample_and_test(args):
     if args.compute_fid:
         # For FID computation, we need real images
         # the real images should be in 'real_img_dir'
+        
         real_img_dir = args.real_img_dir
+        
         if not os.path.exists(real_img_dir):
             raise FileNotFoundError(f"Real image directory {real_img_dir} not found.")
+        
         # Generate samples
         total_samples = args.num_fid_samples
         iters_needed = (total_samples + args.batch_size - 1) // args.batch_size
@@ -184,13 +187,21 @@ def sample_and_test(args):
                 pos_coeff, netG, args.num_timesteps, x_t_1, T, args
             )
             fake_sample = to_range_0_1(fake_sample)
+            
+            if args.save_npy:
+                for j, x in enumerate(fake_sample):
+                    index = i * args.batch_size + j
+                    np.save(f'{save_dir}/{index}.npy', x.detach().cpu().numpy())
+            
             for j, x in enumerate(fake_sample):
                 index = i * args.batch_size + j
                 torchvision.utils.save_image(
                     x, f'{save_dir}/{index}.png', normalize=args.normalize
                 )
-            if i+1 / 50 == i+1 // 50 :
+            
+            if (i + 1) % 50 == 0:
                 print(f'Generated batch {i + 1}/{iters_needed}')
+        
         # Compute FID
         paths = [save_dir, real_img_dir]
         fid = calculate_fid_given_paths(
@@ -205,9 +216,11 @@ def sample_and_test(args):
             
             with open(args.fid_output_path, 'w') as f:
                 f.write(f'{fid}\n')
+            
             print(f'FID score saved to {args.fid_output_path}')
     
     else:
+        save_dir = f"./generated_samples/{args.dataset}"
         # Generate and save sample images
         x_t_1 = torch.randn(
             args.batch_size, args.num_channels, args.image_size, args.image_size
@@ -217,24 +230,26 @@ def sample_and_test(args):
         )
         fake_sample = to_range_0_1(fake_sample)
         
-        save_dir = f"./generated_samples/{args.dataset}"
-        for i, x in enumerate(fake_sample):
-            index = i * args.batch_size + i
-            save_path = os.path.join(save_dir, f'sample_{index}.png')
-            torchvision.utils.save_image(
-                x, save_path, normalize=args.normalize
-            )
-        
-        if args.also_save_npy:
+        if args.save_npy:
             np.save('file.npy', fake_sample.detach().cpu().numpy())
             print('file.npy')
-            
+        
+        else:
+            for i, x in enumerate(fake_sample):
+                index = i * args.batch_size + i
+                save_path = os.path.join(save_dir, f'sample_{index}.png')
+                torchvision.utils.save_image(
+                    x, save_path, normalize=args.normalize
+                )
+        
         print(f'Sample images saved to {save_path}')
+
 
 
 if __name__ == '__main__':
     
     parser = argparse.ArgumentParser(description='DDGAN Testing Parameters')
+    
     parser.add_argument('--seed', type=int, default=1024, help='Random seed')
     
     parser.add_argument('--normalize', default=False, help='Should output norm before save?')
@@ -248,9 +263,12 @@ if __name__ == '__main__':
     parser.add_argument('--fid_output_path', default='./fid_score.txt', help='Path to save the FID score')
     
     parser.add_argument('--dataset', default='luna16', choices=['custom', 'posluna', 'luna16'], help='Dataset name')
+    
     parser.add_argument('--exp', default='exp1', help='Experiment name')
+    
     parser.add_argument('--num_fid_samples', type=int, default=5000, help='Number of samples to generate for FID computation')
-    parser.add_argument('--also_save_npy', default=False)
+    
+    parser.add_argument('--save_npy', action='store_true', help='Save Generated Samples in npy format')
     
     
     
