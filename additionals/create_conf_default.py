@@ -31,6 +31,18 @@ if __name__ == "__main__":
         'mode': 'train',
         'disc_small': 'yes',
         'data_dir': './data/Ones',
+        
+        'distributed': False, 
+        'grad_clip_norm': 1.0, 
+        'weight_decay_G': 0.0, 
+        'weight_decay_D': 0.0, 
+        'beta1_g': 0.5, 
+        'beta2_g': 0.999, 
+        'beta1_d': 0.5, 
+        'beta2_d': 0.999, 
+        'd_updates_per_g_update': 1,
+        
+        
         'what_backend': 'nccl',
         'do_resize': 'no',
         'use_normalize': 'no',

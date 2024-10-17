@@ -53,7 +53,49 @@ if __name__ == '__main__':
     parser.add_argument('--disc_small', type=str, default='yes', help='Use Small Discriminator?', choices=[ 'yes', 'no'])
     
     
-    
+    # For distributed training
+    parser.add_argument(
+        "--distributed",
+        action="store_true",
+        help="Enable distributed training"
+    )
+
+    # For gradient clipping
+    parser.add_argument(
+        "--grad_clip_norm",
+        type=float,
+        default=1.0,
+        help="Max norm for gradient clipping"
+    )
+
+    # For weight decay
+    parser.add_argument(
+        "--weight_decay_G",
+        type=float,
+        default=0.0,
+        help="Weight decay for Generator optimizer"
+    )
+    parser.add_argument(
+        "--weight_decay_D",
+        type=float,
+        default=0.0,
+        help="Weight decay for Discriminator optimizer"
+    )
+
+    # Separate beta parameters
+    parser.add_argument("--beta1_g", type=float, default=0.5, help="Beta1 for Generator optimizer")
+    parser.add_argument("--beta2_g", type=float, default=0.999, help="Beta2 for Generator optimizer")
+    parser.add_argument("--beta1_d", type=float, default=0.5, help="Beta1 for Discriminator optimizer")
+    parser.add_argument("--beta2_d", type=float, default=0.999, help="Beta2 for Discriminator optimizer")
+
+    # For multiple discriminator updates
+    parser.add_argument(
+        "--d_updates_per_g_update",
+        type=int,
+        default=1,
+        help="Number of Discriminator updates per Generator update"
+    )
+
     
     parser.add_argument('--what_backend', default='nccl',choices=['nccl', 'gloo'], help='backend to use inside init_process_group')
     
