@@ -240,7 +240,8 @@ def train(rank, gpu, args):
                                 _3d = True if hasattr(args, 'use_3d_mode') and args.use_3d_mode else False,
                                 bounders = args.num_channels,
                                 single_axis = args.limited_slices,
-                                _where = args.axis_for_limit)
+                                _where = args.axis_for_limit,
+                               fast_memory = args.fast_memory)
     
     try:
         train_sampler = torch.utils.data.distributed.DistributedSampler(dataset,
