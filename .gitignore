@@ -63,7 +63,7 @@ Thumbs.db
 *.wmv
 
 configs/conf_file.py
-configs/config.json
+#configs/config.json
 configs/conf_file.py
 index.ipynb
 configs/conf_file.py

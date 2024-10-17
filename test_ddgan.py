@@ -225,6 +225,10 @@ def sample_and_test(args):
                 x, save_path, normalize=args.normalize
             )
         
+        if args.also_save_npy:
+            np.save('file.npy', fake_sample.detach().cpu().numpy())
+            print('file.npy')
+            
         print(f'Sample images saved to {save_path}')
 
 
@@ -243,9 +247,10 @@ if __name__ == '__main__':
     
     parser.add_argument('--fid_output_path', default='./fid_score.txt', help='Path to save the FID score')
     
-    parser.add_argument('--dataset', default='posluna', choices=['custom', 'posluna', 'luna16'], help='Dataset name')
+    parser.add_argument('--dataset', default='luna16', choices=['custom', 'posluna', 'luna16'], help='Dataset name')
     parser.add_argument('--exp', default='exp1', help='Experiment name')
     parser.add_argument('--num_fid_samples', type=int, default=5000, help='Number of samples to generate for FID computation')
+    parser.add_argument('--also_save_npy', default=False)
     
     
     
