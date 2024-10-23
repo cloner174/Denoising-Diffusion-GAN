@@ -122,12 +122,14 @@ class AdaptivePSO(Optimizer):
             if improvement_ratio < group['threshold_low']:
                 group['c1'] = min(group['c1'] + group['c_adjust_step'], group['c1_max'])
                 group['c2'] = max(group['c2'] - group['c_adjust_step'], group['c2_min'])
-                print(f"Iteration {group['iteration']}: Increasing c1 to {group['c1']:.4f}, Decreasing c2 to {group['c2']:.4f}")
+                if i == self.swarm_size - 2 :
+                    print(f"Iteration {group['iteration']}: Increasing c1 to {group['c1']:.4f}, Decreasing c2 to {group['c2']:.4f}")
             
             elif improvement_ratio > group['threshold_high']:
                 group['c1'] = max(group['c1'] - group['c_adjust_step'], group['c1_min'])
                 group['c2'] = min(group['c2'] + group['c_adjust_step'], group['c2_max'])
-                print(f"Iteration {group['iteration']}: Decreasing c1 to {group['c1']:.4f}, Increasing c2 to {group['c2']:.4f}")
+                if i == self.swarm_size - 2 :
+                    print(f"PSO-Iteration {group['iteration']}: Decreasing c1 to {group['c1']:.4f}, Increasing c2 to {group['c2']:.4f}")
             
             group['iteration'] += 1
         

@@ -294,7 +294,7 @@ def train(rank, gpu, args):
         broadcast_params(netD.parameters())
     
     
-    if args.kind_od_optim.lower() == 'adam':
+    if args.kind_of_optim.lower() == 'adam':
         optimizerD = optim.Adam(
             netD.parameters(), 
             lr=args.lr_d, 
@@ -312,7 +312,7 @@ def train(rank, gpu, args):
         schedulerG = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerG, args.num_epoch, eta_min=1e-5)
         schedulerD = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerD, args.num_epoch, eta_min=1e-5)
     
-    elif args.kind_od_optim.lower() == 'pso':
+    elif args.kind_of_optim.lower() == 'pso':
         optimizerD = AdaptivePSO(
             params=netD.parameters(),
             swarm_size=20,
@@ -399,7 +399,7 @@ def train(rank, gpu, args):
         optimizerD.load_state_dict(checkpoint['optimizerD'])
         
         
-        if args.kind_od_optim.lower() == 'adam':
+        if args.kind_of_optim.lower() == 'adam':
             schedulerG.load_state_dict(checkpoint['schedulerG'])
             schedulerD.load_state_dict(checkpoint['schedulerD'])
         
@@ -431,12 +431,14 @@ def train(rank, gpu, args):
         
         loss_values_D = []
         loss_values_G = []
+        local_loss_D = []
+        local_loss_G = []
         for iteration, (x, _) in enumerate(data_loader):
             if limited_iter is not None and iteration not in limited_iter:
                 break
             
             # Train Discriminator
-            if args.kind_od_optim.lower() == 'adam':
+            if args.kind_of_optim.lower() == 'adam':
                 for p in netD.parameters():
                     p.requires_grad = True
                 
@@ -451,11 +453,11 @@ def train(rank, gpu, args):
             D_real = netD(x_t, t, x_tp1.detach()).view(-1)
             errD_real = F.softplus(-D_real).mean()
             
-            if args.kind_od_optim.lower() == 'adam':
+            if args.kind_of_optim.lower() == 'adam':
                 errD_real.backward(retain_graph=True)
             
             # Gradient penalty
-            if args.kind_od_optim.lower() == 'adam' and args.lazy_reg is None or global_step % args.lazy_reg == 0:
+            if args.kind_of_optim.lower() == 'adam' and args.lazy_reg is None or global_step % args.lazy_reg == 0:
                 grad_real = torch.autograd.grad(
                     outputs=D_real.sum(), inputs=x_t, create_graph=True)[0]
                 grad_penalty = (grad_real.view(grad_real.size(0), -1).norm(2, dim=1) ** 2).mean()
@@ -469,13 +471,14 @@ def train(rank, gpu, args):
             output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
             errD_fake = F.softplus(output).mean()
             
-            if args.kind_od_optim.lower() == 'adam':
+            if args.kind_of_optim.lower() == 'adam':
                 errD_fake.backward()
             
             errD = errD_real + errD_fake
             loss_values_D.append(errD.item())
+            local_loss_D.append(errD.item())
             
-            if args.kind_od_optim.lower() == 'adam':
+            if args.kind_of_optim.lower() == 'adam':
                 torch.nn.utils.clip_grad_norm_(netD.parameters(), max_norm=args.grad_clip_norm)
                 optimizerD.step()
                 # Train Generator
@@ -483,8 +486,9 @@ def train(rank, gpu, args):
                     p.requires_grad = False
                 netG.zero_grad()
             
-            elif args.kind_od_optim.lower() == 'pso':
-                optimizerD.step([errD.item()])
+            elif args.kind_of_optim.lower() == 'pso' and len(local_loss_D) > 20:#swarm_size
+                optimizerD.step(local_loss_D)
+                local_loss_D = []
             
             t = torch.randint(0, args.num_timesteps, (real_data.size(0),), device=device)
             x_t, x_tp1 = q_sample_pairs(coeff, real_data, t)
@@ -494,16 +498,18 @@ def train(rank, gpu, args):
             x_pos_sample = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
             output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
             
-            if args.kind_od_optim.lower() == 'adam':
+            if args.kind_of_optim.lower() == 'adam':
                 errG.backward()
                 torch.nn.utils.clip_grad_norm_(netG.parameters(), max_norm=args.grad_clip_norm)
                 optimizerG.step()
             
             errG = F.softplus(-output).mean()
             loss_values_G.append(errG.item())
+            local_loss_G.append(errG.item())
             
-            if args.kind_od_optim.lower() == 'pso':
-                optimizerG.step([errG.item()])
+            if args.kind_of_optim.lower() == 'pso' and len(local_loss_G) > 20:#swarm_size
+                optimizerG.step(local_loss_G)
+                local_loss_G = []
             
             if args.use_ema:
                 emaG.step()
@@ -512,11 +518,11 @@ def train(rank, gpu, args):
             if iteration % 100 == 0 and rank == 0:
                 print(f'Epoch {epoch + 1}, Iteration {iteration}, G Loss: {errG.item():.8f}, D Loss: {errD.item():.8f}')
         
-        if args.kind_od_optim.lower() == 'adam' and not args.no_lr_decay:
+        if args.kind_of_optim.lower() == 'adam' and not args.no_lr_decay:
             schedulerG.step()
             schedulerD.step()
         
-        elif args.kind_od_optim.lower() == 'pso':
+        elif args.kind_of_optim.lower() == 'pso':
             if loss_values_D:
                 optimizerD.step(loss_values_D)
             
@@ -542,7 +548,7 @@ def train(rank, gpu, args):
                 'netD_dict': netD_state_dict,
                 'optimizerD': optimizerD.state_dict(),
             }
-            if args.kind_od_optim.lower() == 'adam':
+            if args.kind_of_optim.lower() == 'adam':
                 content['schedulerG'] = schedulerG.state_dict()
                 content['schedulerD'] = schedulerD.state_dict()
             
