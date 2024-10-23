@@ -19,6 +19,8 @@ from score_sde.models.discriminator import Discriminator_small, Discriminator_la
 from score_sde.models.ncsnpp_generator_adagn import NCSNpp
 from ema import EMA
 
+from pso_optim import AdaptivePSO
+
 
 def copy_source(file, output_dir):
     """Copy the source file to the output directory."""
@@ -291,25 +293,71 @@ def train(rank, gpu, args):
         broadcast_params(netG.parameters())
         broadcast_params(netD.parameters())
     
-    optimizerD = optim.Adam(
-        netD.parameters(), 
-        lr=args.lr_d, 
-        betas=(args.beta1_d, args.beta2_d),
-        weight_decay=args.weight_decay_D
-        )
     
-    optimizerG = optim.Adam(
-        netG.parameters(), 
-        lr=args.lr_g, 
-        betas=(args.beta1_g, args.beta2_g),
-        weight_decay=args.weight_decay_G
+    if args.kind_od_optim.lower() == 'adam':
+        optimizerD = optim.Adam(
+            netD.parameters(), 
+            lr=args.lr_d, 
+            betas=(args.beta1_d, args.beta2_d),
+            weight_decay=args.weight_decay_D
+            )
+    
+        optimizerG = optim.Adam(
+            netG.parameters(), 
+            lr=args.lr_g, 
+            betas=(args.beta1_g, args.beta2_g),
+            weight_decay=args.weight_decay_G
+            )
+        
+        schedulerG = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerG, args.num_epoch, eta_min=1e-5)
+        schedulerD = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerD, args.num_epoch, eta_min=1e-5)
+    
+    elif args.kind_od_optim.lower() == 'pso':
+        optimizerD = AdaptivePSO(
+            params=netD.parameters(),
+            swarm_size=20,
+            inertia_weight=0.729,
+            inertia_weight_strategy='constant',
+            c1=1.49445,
+            c1_min=1.0,
+            c1_max=2.0,
+            c2=1.49445,
+            c2_min=1.0,
+            c2_max=2.0,
+            max_iter=args.num_epoch * len(data_loader),  # Adjust based on total iterations
+            weight_decay=args.weight_decay_D,
+            velocity_clamp=(-1.0, 1.0),
+            position_clamp=(-10.0, 10.0),
+            threshold_low=0.2,
+            threshold_high=0.5,
+            c_adjust_step=0.05
         )
+        
+        optimizerG = AdaptivePSO(
+            params=netG.parameters(),
+            swarm_size=20,
+            inertia_weight=0.729,
+            inertia_weight_strategy='constant',
+            c1=1.49445,
+            c1_min=1.0,
+            c1_max=2.0,
+            c2=1.49445,
+            c2_min=1.0,
+            c2_max=2.0,
+            max_iter=args.num_epoch * len(data_loader),  # Adjust based on total iterations
+            weight_decay=args.weight_decay_G,
+            velocity_clamp=(-1.0, 1.0),
+            position_clamp=(-10.0, 10.0),
+            threshold_low=0.2,
+            threshold_high=0.5,
+            c_adjust_step=0.05
+    )
+    
+    
     
     if args.use_ema:
         emaG = EMA(netG, optimizerG, ema_decay=args.ema_decay, device=device)
     
-    schedulerG = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerG, args.num_epoch, eta_min=1e-5)
-    schedulerD = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerD, args.num_epoch, eta_min=1e-5)
     # Distributed Data Parallel
     
     if args.distributed:
@@ -348,9 +396,13 @@ def train(rank, gpu, args):
 
         # Load optimizers and schedulers
         optimizerG.load_state_dict(checkpoint['optimizerG'])
-        schedulerG.load_state_dict(checkpoint['schedulerG'])
         optimizerD.load_state_dict(checkpoint['optimizerD'])
-        schedulerD.load_state_dict(checkpoint['schedulerD'])
+        
+        
+        if args.kind_od_optim.lower() == 'adam':
+            schedulerG.load_state_dict(checkpoint['schedulerG'])
+            schedulerD.load_state_dict(checkpoint['schedulerD'])
+        
         global_step = checkpoint['global_step']
         init_epoch = checkpoint['epoch']
         if args.use_ema and 'emaG' in checkpoint:
@@ -370,70 +422,88 @@ def train(rank, gpu, args):
             limited_iter = [i for i in range(int(np.mean(args.limited_iter)))]
             print(f"Limiting to {int(np.mean(args.limited_iter))} iterations per epoch.")
         print('-----------------')
-
+    
     # Training loop
     for epoch in range(init_epoch, args.num_epoch + 1):
         if args.distributed and 'train_sampler' in locals():
             train_sampler.set_epoch(epoch)
-
+        
+        
+        loss_values_D = []
+        loss_values_G = []
         for iteration, (x, _) in enumerate(data_loader):
             if limited_iter is not None and iteration not in limited_iter:
                 break
-
+            
             # Train Discriminator
-            for p in netD.parameters():
-                p.requires_grad = True
-            netD.zero_grad()
-
+            if args.kind_od_optim.lower() == 'adam':
+                for p in netD.parameters():
+                    p.requires_grad = True
+                
+                netD.zero_grad()
+            
             real_data = x.to(device, non_blocking=True)
             t = torch.randint(0, args.num_timesteps, (real_data.size(0),), device=device)
             x_t, x_tp1 = q_sample_pairs(coeff, real_data, t)
             x_t.requires_grad = True
-
+            
             # Real samples
             D_real = netD(x_t, t, x_tp1.detach()).view(-1)
             errD_real = F.softplus(-D_real).mean()
-            errD_real.backward(retain_graph=True)
-
+            
+            if args.kind_od_optim.lower() == 'adam':
+                errD_real.backward(retain_graph=True)
+            
             # Gradient penalty
-            if args.lazy_reg is None or global_step % args.lazy_reg == 0:
+            if args.kind_od_optim.lower() == 'adam' and args.lazy_reg is None or global_step % args.lazy_reg == 0:
                 grad_real = torch.autograd.grad(
                     outputs=D_real.sum(), inputs=x_t, create_graph=True)[0]
                 grad_penalty = (grad_real.view(grad_real.size(0), -1).norm(2, dim=1) ** 2).mean()
                 grad_penalty = args.r1_gamma / 2 * grad_penalty
                 grad_penalty.backward()
-
+            
             # Fake samples
             latent_z = torch.randn(batch_size, nz, device=device)
             x_0_predict = netG(x_tp1.detach(), t, latent_z)
             x_pos_sample = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
             output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
             errD_fake = F.softplus(output).mean()
-            errD_fake.backward()
+            
+            if args.kind_od_optim.lower() == 'adam':
+                errD_fake.backward()
+            
             errD = errD_real + errD_fake
+            loss_values_D.append(errD.item())
             
-            torch.nn.utils.clip_grad_norm_(netD.parameters(), max_norm=args.grad_clip_norm)
+            if args.kind_od_optim.lower() == 'adam':
+                torch.nn.utils.clip_grad_norm_(netD.parameters(), max_norm=args.grad_clip_norm)
+                optimizerD.step()
+                # Train Generator
+                for p in netD.parameters():
+                    p.requires_grad = False
+                netG.zero_grad()
             
-            optimizerD.step()
-
-            # Train Generator
-            for p in netD.parameters():
-                p.requires_grad = False
-            netG.zero_grad()
-
+            elif args.kind_od_optim.lower() == 'pso':
+                optimizerD.step([errD.item()])
+            
             t = torch.randint(0, args.num_timesteps, (real_data.size(0),), device=device)
             x_t, x_tp1 = q_sample_pairs(coeff, real_data, t)
+            
             latent_z = torch.randn(batch_size, nz, device=device)
             x_0_predict = netG(x_tp1.detach(), t, latent_z)
             x_pos_sample = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
             output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
+            
+            if args.kind_od_optim.lower() == 'adam':
+                errG.backward()
+                torch.nn.utils.clip_grad_norm_(netG.parameters(), max_norm=args.grad_clip_norm)
+                optimizerG.step()
+            
             errG = F.softplus(-output).mean()
+            loss_values_G.append(errG.item())
             
-            errG.backward()
-            
-            torch.nn.utils.clip_grad_norm_(netG.parameters(), max_norm=args.grad_clip_norm)
-            
-            optimizerG.step()
+            if args.kind_od_optim.lower() == 'pso':
+                optimizerG.step([errG.item()])
             
             if args.use_ema:
                 emaG.step()
@@ -442,9 +512,16 @@ def train(rank, gpu, args):
             if iteration % 100 == 0 and rank == 0:
                 print(f'Epoch {epoch + 1}, Iteration {iteration}, G Loss: {errG.item():.8f}, D Loss: {errD.item():.8f}')
         
-        if not args.no_lr_decay:
+        if args.kind_od_optim.lower() == 'adam' and not args.no_lr_decay:
             schedulerG.step()
             schedulerD.step()
+        
+        elif args.kind_od_optim.lower() == 'pso':
+            if loss_values_D:
+                optimizerD.step(loss_values_D)
+            
+            if loss_values_G:
+                optimizerG.step(loss_values_G)
         
         # Save outputs and checkpoints
         if rank == 0:
@@ -462,22 +539,26 @@ def train(rank, gpu, args):
                 'args': vars(args),
                 'netG_dict': netG_state_dict,
                 'optimizerG': optimizerG.state_dict(),
-                'schedulerG': schedulerG.state_dict(),
                 'netD_dict': netD_state_dict,
                 'optimizerD': optimizerD.state_dict(),
-                'schedulerD': schedulerD.state_dict(),
             }
+            if args.kind_od_optim.lower() == 'adam':
+                content['schedulerG'] = schedulerG.state_dict()
+                content['schedulerD'] = schedulerD.state_dict()
+            
             if args.use_ema:
                 content['emaG'] = emaG.state_dict()
+            
             torch.save(content, os.path.join(exp_path, 'content.pth'))
 
             if epoch % args.save_ckpt_every == 0:
                 if args.use_ema:
                     emaG.swap_parameters_with_ema(store_params_in_ema=True)
+                
                 torch.save(netG.state_dict(), os.path.join(exp_path, f'netG_{epoch}.pth'))
                 if args.use_ema:
                     emaG.swap_parameters_with_ema(store_params_in_ema=True)
-
+            
             # Save final generator loss
             with open(os.path.join(exp_path, 'final_loss.txt'), 'w') as f:
                 f.write(f"{errG.item()}\n")

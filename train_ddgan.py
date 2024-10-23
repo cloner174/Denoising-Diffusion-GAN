@@ -81,7 +81,7 @@ if __name__ == '__main__':
         default=0.0,
         help="Weight decay for Discriminator optimizer"
     )
-
+    
     # Separate beta parameters
     parser.add_argument("--beta1_g", type=float, default=0.5, help="Beta1 for Generator optimizer")
     parser.add_argument("--beta2_g", type=float, default=0.999, help="Beta2 for Generator optimizer")
@@ -104,6 +104,8 @@ if __name__ == '__main__':
     parser.add_argument('--CenterCrop', choices=['yes', 'no'] , help='what should be inside transormers!')
     
     parser.add_argument('--image_size', type=int, help='size of image')
+    
+    parser.add_argument('--kind_of_optim', type=str, default='adam', help='Optimizer to use', choices=['pso', 'adam'])
     
     parser.add_argument('--num_channels', type=int, help='channel of image')
     

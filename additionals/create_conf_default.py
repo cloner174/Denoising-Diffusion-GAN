@@ -16,6 +16,7 @@ if __name__ == "__main__":
     
     conf = {
         'seed': 1024,
+        'kind_of_optim': 'adam',    #can be 'adam' or 'pso'
         "use_config_file": True,
         "config_file": "configs/config.json",
         "mask_dir": "./data/Masks/processed_masks",

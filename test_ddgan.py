@@ -141,8 +141,9 @@ def sample_and_test(args):
     checkpoint = torch.load(content_path, map_location=device)
     saved_args = checkpoint['args']
     # Update args with saved_args
-    saved_args.__dict__.update(vars(args))  # Override with any command-line arguments
-    args = saved_args
+    saved_args.update(vars(args))  # Override with any command-line arguments
+    
+    args = argparse.Namespace(**saved_args)
     
     # Function to normalize images to [0, 1]
     to_range_0_1 = lambda x: (x + 1.0) / 2.0
@@ -256,7 +257,7 @@ if __name__ == '__main__':
     
     parser.add_argument('--compute_fid', action='store_true', help='Compute FID score')
     
-    parser.add_argument('--epoch_id', type=int, default=1000, help='Epoch ID to load checkpoint from')
+    parser.add_argument('--epoch_id', type=int, default=109, help='Epoch ID to load checkpoint from')
     
     parser.add_argument('--real_img_dir', default='./real_images', help='Directory for real images (for FID computation)')
     

@@ -1,5 +1,6 @@
 {
     "seed": 1024,
+    "kind_of_optim": "adam",
     "use_config_file": true,
     "config_file": "configs/config.json",
     "mask_dir": "./data/Masks/processed_masks",
