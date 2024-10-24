@@ -218,6 +218,149 @@ class Luna16Dataset(Dataset):
 
 
 
+
+class Luna16Dataset2(Dataset):
+    
+    def __init__(self, 
+                 data_dir, 
+                 mask_dir = None,
+                 transform=None, 
+                 bound_exp_lim = 5, 
+                 single_axis:bool = True, # when it's False, all three dims will be generates and converts!
+                 _where: str|None = None,# 'z' or 'x' or 'y' ? #  only works when single_axis == True | if None and single_axis is true, defualts will be used!
+                 fast_memory = False, 
+                 path_to_slices_info = None):
+        
+        self.transform = transform
+        self.data_dir = data_dir
+        self.mask_dir = mask_dir
+        self.bound_exp_lim = bound_exp_lim
+        
+        self.fast_memory = fast_memory
+        
+        self.single_axis = single_axis
+        self._where_ = _where
+        
+        if single_axis:
+            _where = _where if _where is not None else 'z'
+            self._where_all = [ _where ]
+        else:
+            self._where_all = [ 'x', 'y', 'z']
+        
+        if path_to_slices_info is not None:
+            self.path_to_slice_info = path_to_slices_info
+            self.slice_info = load_slice_info(path_to_slices_info)
+        else:
+            self.slice_info = []  # List of tuples: ( .nii.gz file path, slice index)
+            self._prepare_dataset()
+            save_slice_info(self.slice_info)
+        
+        if self.fast_memory:
+            self.__get_abs__()
+    
+    
+    def _prepare_dataset(self):
+        if not os.path.isdir(self.data_dir):
+            raise FileNotFoundError(f"Please check your data_dir path and try again. The current path is: {self.data_dir}")
+        # Get all .nii.gz files
+        if self.mask_dir == None:
+            raise FileNotFoundError(f"Please check your mask_dir path and try again. The current path is: {self.mask_dir}")
+        nii_files =  [os.path.join(self.data_dir, file) for file in os.listdir(self.data_dir) if file.endswith(".nii.gz")]
+        if not nii_files:
+            raise FileNotFoundError("No patches found in the specified directory.")
+        # build the slice_info list
+        for nii_file_path in nii_files:
+            #patch = nib.load(nii_file_path) همه ی آرایه ها 256 هستند -->> 256*256*256
+            nii_file_name = os.path.split(nii_file_path)[-1]
+            mask_path = os.path.join( self.mask_dir, nii_file_name)
+            mask = nib.load(mask_path).get_fdata()
+            handled_indexes = self.__handle_edges__(np.nonzero(mask))
+            if handled_indexes is None:
+                continue
+            else:
+                Dx, Dy, Dz = handled_indexes
+            if self.single_axis and self._where_ == 'x' or not self.single_axis:
+                for i in range(len(Dx)):
+                    self.slice_info.append((nii_file_path, 'x', Dx[i]))
+            if self.single_axis and self._where_ == 'y' or not self.single_axis:
+                for i in range(len(Dy)):
+                    self.slice_info.append((nii_file_path, 'y', Dy[i]))
+            if self.single_axis and self._where_ == 'z' or not self.single_axis:
+                for i in range(len(Dz)):
+                    self.slice_info.append((nii_file_path, 'z', Dz[i]))
+    
+    def __handle_edges__(self, indxes):
+        data_shape = (256, 256, 256)
+        if len(indxes) < 3 or len(data_shape) < 3:
+            return None
+        min_bound_x = min(indxes[0])
+        min_bound_y = min(indxes[1])
+        min_bound_z = min(indxes[2])
+        max_bound_x = max(indxes[0]) + 1 if max(indxes[0]) + 1 < data_shape[0] else max(indxes[0])
+        max_bound_y = max(indxes[1]) + 1 if max(indxes[1]) + 1 < data_shape[1] else max(indxes[1])
+        max_bound_z = max(indxes[2]) + 1 if max(indxes[2]) + 1 < data_shape[2] else max(indxes[2])
+        if min_bound_x > self.bound_exp_lim :
+            min_bound_x -= self.bound_exp_lim
+        if min_bound_y > self.bound_exp_lim :
+            min_bound_y -= self.bound_exp_lim
+        if min_bound_z > self.bound_exp_lim :
+            min_bound_z -= self.bound_exp_lim
+        if max_bound_x + self.bound_exp_lim < data_shape[0] :
+            max_bound_x += self.bound_exp_lim
+        if max_bound_y + self.bound_exp_lim < data_shape[1] :
+            max_bound_y += self.bound_exp_lim
+        if max_bound_z + self.bound_exp_lim < data_shape[2] :
+            max_bound_z += self.bound_exp_lim
+        Dx = range(min_bound_x,max_bound_x)
+        Dy = range(min_bound_y,max_bound_y)
+        Dz = range(min_bound_z,max_bound_z)
+        return Dx, Dy, Dz
+    
+    def __get_abs__(self):
+        for any_ in self.slice_info:
+            nii_file_path, _where_, slice_index = any_
+            patch = nib.load(nii_file_path).get_fdata()
+            if slice_index < 0 or slice_index >= 256:
+                raise IndexError(f"Slice index {slice_index} out of bounds for patch with shape {patch.shape}")
+            if _where_ == 'x' and _where_ in self._where_all:
+                image_2d = patch[ slice_index , : , : ]
+            elif _where_ == 'y' and _where_ in self._where_all:
+                image_2d = patch[ : , slice_index, : ]
+            elif _where_ == 'z' and _where_ in self._where_all:
+                image_2d = patch[ : , : , slice_index ]
+            
+            self.slices.append(image_2d)
+    
+    def __getitem__(self, index):
+        # get the specified slice
+        if self.fast_memory:
+                image_2d = self.slices[index]
+        else:
+                nii_file_path, _where_, slice_index = self.slice_info[index]
+                patch = nib.load(nii_file_path).get_fdata()
+                if slice_index < 0 or slice_index >= 256:
+                    raise IndexError(f"Slice index {slice_index} out of bounds for patch with shape {patch.shape}")
+                if _where_ == 'x' and _where_ in self._where_all:
+                    image_2d = patch[ slice_index , : , : ]
+                elif _where_ == 'y' and _where_ in self._where_all:
+                    image_2d = patch[ : , slice_index, : ]
+                elif _where_ == 'z' and _where_ in self._where_all:
+                    image_2d = patch[ : , : , slice_index ]
+        img = Image.fromarray(image_2d.astype(np.uint8)).crop((40,60, 220, 200)).resize((64,64))
+        if self.transform is not None:
+            img = self.transform(img)
+        return img, 1  # 'Dummy' label! برای مدل جن نیاز ی به لیبل نیست
+    
+    def __len__(self):
+        if self.fast_memory:
+                return len(self.slices)
+        else:
+                return len(self.slice_info)
+
+
+
+
+
 class PositivePatchDataset(Dataset):
     
     def __init__(self, data_dir, transform=None, limited_slices = False):

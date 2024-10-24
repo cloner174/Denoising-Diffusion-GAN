@@ -89,7 +89,7 @@ def nii_to_png_simple(nii_file_path,
                       slice_index, 
                       only_z = True,
                       save_dir = './real_images', 
-                      transform = None):
+                      do_resize_to: tuple|None = (128,128)):
     try:
         import nibabel as nib
     except ModuleNotFoundError:
@@ -114,8 +114,8 @@ def nii_to_png_simple(nii_file_path,
             image_2d = patch[ : , : , slice_index ]
     
     image_2d = Image.fromarray(image_2d.astype(np.uint8))
-    if transform is not None:
-        image_2d = transform(image_2d)
+    if do_resize_to is not None:
+        image_2d = image_2d.resize(do_resize_to)
     
     temp_name = os.path.split(nii_file_path)[-1].split('.nii.gz')[0]
     temp_name += f'_{_where_}_{slice_index}.png'
