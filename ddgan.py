@@ -459,7 +459,7 @@ def train(rank, gpu, args):
             # Gradient penalty
             if args.kind_of_optim.lower() == 'adam' and args.lazy_reg is None or global_step % args.lazy_reg == 0:
                 grad_real = torch.autograd.grad(
-                    outputs=D_real.sum(), inputs=x_t, create_graph=True)[0]
+                    outputs = D_real.sum(), inputs=x_t, create_graph=True)[0]
                 grad_penalty = (grad_real.view(grad_real.size(0), -1).norm(2, dim=1) ** 2).mean()
                 grad_penalty = args.r1_gamma / 2 * grad_penalty
                 grad_penalty.backward()
@@ -498,12 +498,13 @@ def train(rank, gpu, args):
             x_pos_sample = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
             output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
             
+            errG = F.softplus(-output).mean()
+            
             if args.kind_of_optim.lower() == 'adam':
                 errG.backward()
                 torch.nn.utils.clip_grad_norm_(netG.parameters(), max_norm=args.grad_clip_norm)
                 optimizerG.step()
             
-            errG = F.softplus(-output).mean()
             loss_values_G.append(errG.item())
             local_loss_G.append(errG.item())
             
