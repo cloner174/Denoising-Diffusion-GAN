@@ -165,7 +165,7 @@ def sample_and_test(args):
     T = get_time_schedule(args, device)
     pos_coeff = Posterior_Coefficients(args, device)
     # Prepare directories
-    save_dir = f"./generated_samples/{args.dataset}"
+    save_dir = f"{args.generated_samples_dir}/generated_samples/{args.dataset}"
     os.makedirs(save_dir, exist_ok=True)
     if args.compute_fid:
         # For FID computation, we need real images
@@ -271,7 +271,7 @@ if __name__ == '__main__':
     
     parser.add_argument('--save_npy', action='store_true', help='Save Generated Samples in npy format')
     
-    
+    parser.add_argument('--generated_samples_dir', type=str, default='.', help='path for saving generated images')
     
     args = parser.parse_args()
     
