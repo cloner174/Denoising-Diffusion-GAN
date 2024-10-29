@@ -24,7 +24,7 @@ if __name__ == "__main__":
         "bound_expand_limit": 0,
         "axis_for_limit": "z",
         "use_3d_mode": False,
-        "path_to_slices_info" : 'configs/slices_info_Zonly.txt',
+        "path_to_slices_info" : 'configs/SlicesInfoZ.txt',
         'limited_slices':True,
         'resume': False,
         'num_workers': 0,
