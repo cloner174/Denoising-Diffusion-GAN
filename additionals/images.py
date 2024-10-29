@@ -124,7 +124,7 @@ def nii_to_png_simple(nii_file_path,
 
 
 
-def nii_to_png(slices_info, save_dir = './real_images', only_z = True, lim = None, do_transform_for = 'none'):#can be 'train' or 'val' or 'none'
+def nii_to_png(slices_info, save_dir = './real_images', only_z = True, lim = None, do_resize_to = None, do_transform_for = 'none'):#can be 'train' or 'val' or 'none'
     os.makedirs(save_dir, exist_ok=True)
     
     if do_transform_for == 'train':
@@ -140,7 +140,7 @@ def nii_to_png(slices_info, save_dir = './real_images', only_z = True, lim = Non
             if len( os.listdir(save_dir) ) > lim:
                 return
         nii_file_path, _where_, slice = any_
-        nii_to_png_simple(nii_file_path, _where_, slice, only_z, save_dir , transform )
+        nii_to_png_simple(nii_file_path, _where_, slice, only_z, save_dir , do_resize_to )
     
     return
 
