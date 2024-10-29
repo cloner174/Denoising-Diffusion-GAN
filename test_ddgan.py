@@ -200,8 +200,12 @@ def sample_and_test(args):
                     x, f'{save_dir}/{index}.png', normalize=args.normalize
                 )
             
-            if (i + 1) % 50 == 0:
-                print(f'Generated batch {i + 1}/{iters_needed}')
+            if (i + 1) % iters_needed//2 == 0:
+                if i < iters_needed//2:
+                    print(f'Start Generat batches for {args.exp}: Num Created Sample yet -> {i + 1}/{iters_needed}')
+                else:
+                    print(f'Done! Generated batches for {args.exp} was successfully done: Num Created Sample yet -> {i + 1}/{iters_needed}')
+                
         
         # Compute FID
         paths = [save_dir, real_img_dir]
