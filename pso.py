@@ -357,7 +357,7 @@ def evaluate(hyperparams: Dict, seed: int) -> float:
     # configuration
     config_path, config = prepare_config(base_config_path, hyperparams, unique_id)
     exp_path = os.path.join("./saved_info/dd_gan", config['dataset'], config['exp'])
-    
+    os.makedirs(exp_path , exist_ok = True)
     try:
         # Set seeds for reproducibility
         set_random_seeds(seed)
@@ -470,17 +470,19 @@ def compute_fid_score(config: Dict, unique_id: int) -> float:
     """
     # real images directory has enough images
     real_img_dir = os.path.join(config['save_dir'], 'real_images')
+    generated_samples_dir = os.path.join(config['save_dir'], f'generated_samples_{config['exp']}')
+    os.makedirs(generated_samples_dir , exist_ok = True)
     if not os.path.isdir(real_img_dir) or len(os.listdir(real_img_dir)) < 100:
         if config.get('path_to_slices_info'):
             slices_info = load_slice_info(config['path_to_slices_info'])
-            nii_to_png(slices_info, save_dir=real_img_dir, lim=1000)
+            nii_to_png(slices_info, save_dir=real_img_dir, lim=1000, do_resize_to = ( int(config['image_size']), int(config['image_size']) ) )
         else:
             raise FileNotFoundError("Path to slices info is not specified in the config.")
     
     fid_file = os.path.join('./saved_info/', f'fid_score_{unique_id}.txt')
     
     command = (
-        f"{sys.executable} test_ddgan.py --epoch_id {config['num_epoch']} "
+        f"{sys.executable} test_ddgan.py --epoch_id {config['num_epoch']} --generated_samples_dir {generated_samples_dir} "
         f"--dataset {config['dataset']} --exp {config['exp']} "
         f"--real_img_dir {real_img_dir} --compute_fid --fid_output_path {fid_file}"
     )
@@ -534,7 +536,7 @@ def cleanup_experiment(config: Dict, unique_id: int):
     if os.path.exists(exp_path):
         shutil.rmtree(exp_path)
     
-    generated_samples_dir = os.path.join(config['save_dir'], 'generated_samples')
+    generated_samples_dir = os.path.join(config['save_dir'], f'generated_samples_{config['exp']}')
     if os.path.exists(generated_samples_dir):
         shutil.rmtree(generated_samples_dir)
     
