@@ -3,10 +3,6 @@
 """
 PSO-GAN Hyperparameter Optimization Script
 
-This script performs hyperparameter optimization for a GAN using Particle Swarm Optimization (PSO).
-It evaluates different sets of hyperparameters by training the GAN and computing a combined score
-based on the FID score and the generator loss.
-
 - FID and loss scores
 - multiprocessing
 """
@@ -49,32 +45,22 @@ def setup_logger(log_file: str = 'pso_gan_optimization.log'):
     """
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
-    
-    # Remove any existing handlers to prevent duplicate logs
     if logger.hasHandlers():
         logger.handlers.clear()
     
-    # Formatter to include time, level, and message
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    
-    # File handler
     fh = logging.FileHandler(log_file)
     fh.setLevel(logging.INFO)
     fh.setFormatter(formatter)
     logger.addHandler(fh)
-    
-    # Stream handler (console)
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(logging.INFO)
     ch.setFormatter(formatter)
     logger.addHandler(ch)
-    
     return logger
 
 
-# Initialize logger
 logger = setup_logger()
-
 
 def set_random_seeds(seed: int = 42):
     """
@@ -87,7 +73,7 @@ def set_random_seeds(seed: int = 42):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    # Ensures that CUDA selects the same algorithms each time
+    
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
@@ -104,16 +90,16 @@ def run_bash_command(command: str) -> None:
     """
     logger.info(f"Executing command: {command}")
     try:
-        # Execute the command
+        
         process = subprocess.Popen(
             command,
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True  # Ensures the output is string, not bytes
+            text=True
         )
         
-        # Stream the output and error in real-time
+        
         while True:
             output = process.stdout.readline()
             error = process.stderr.readline()
@@ -124,7 +110,7 @@ def run_bash_command(command: str) -> None:
             if output == '' and error == '' and process.poll() is not None:
                 break
         
-        # Check for return code
+        
         return_code = process.poll()
         if return_code != 0:
             raise RuntimeError(f"Command failed with return code {return_code}")
@@ -154,7 +140,6 @@ class Particle:
         self.best_position = {}
         self.best_score = float('inf')
         
-        # Initialize position and velocity for each hyperparameter
         for param, bounds in search_space.items():
             if param == 'step':
                 continue
@@ -189,7 +174,6 @@ class Particle:
             social_velocity = c2 * r2 * (global_best_position[param] - self.position[param])
             self.velocity[param] = w * self.velocity[param] + cognitive_velocity + social_velocity
             
-            # Apply velocity clamping if specified
             if max_velocity is not None:
                 self.velocity[param] = max(-max_velocity, min(self.velocity[param], max_velocity))
     
@@ -202,7 +186,6 @@ class Particle:
         """
         for param in self.position:
             self.position[param] += self.velocity[param]
-            # Enforce bounds and discretize if necessary
             min_val, max_val = search_space[param]
             if isinstance(min_val, int):
                 step = search_space.get('step', {}).get(param, 1)
@@ -256,7 +239,6 @@ class PSO:
         self.seed = seed
         set_random_seeds(self.seed)
         
-        # Initialize particles with unique seeds
         self.particles = [Particle(search_space, seed=self.seed + i) for i in range(num_particles)]
         self.global_best_position = self.particles[0].position.copy()
         self.global_best_score = float('inf')
@@ -270,18 +252,14 @@ class PSO:
             
             logger.info(f"Iteration {iteration + 1}/{self.num_iterations}")
             if self.max_velocity is not None:
-                # Gradually decrease inertia weight (Linear Decreasing Inertia Weight)
                 self.w = 0.9 - iteration * (0.5 / self.num_iterations)
-                self.w = max(self.w, 0.4)  # Ensure w does not go below 0.4
+                self.w = max(self.w, 0.4)
                 logger.info(f"Updated inertia weight: {self.w:.4f}")
             
-            # Arguments for evaluation
             positions = [particle.position for particle in self.particles]
             
-            # Assign unique seeds for each evaluation
             seeds = [self.seed + i + iteration * self.num_particles for i in range(self.num_particles)]
             
-            # Evaluate particles
             if self.use_multiprocessing:
                 with multiprocessing.Pool(processes=min(self.num_particles, multiprocessing.cpu_count())) as pool:
                     results = pool.starmap(evaluate_wrapper, zip(positions, seeds))
@@ -292,25 +270,21 @@ class PSO:
                     result = evaluate(position, seed=seed)
                     results.append(result)
             
-            # Update particles
             for i, particle in enumerate(self.particles):
                 
                 score = results[i]
                 logger.info(f"Particle {i + 1}/{self.num_particles}, Score: {score}")
                 
-                # Update particle's best score and position
                 if score < particle.best_score:
                     particle.best_score = score
                     particle.best_position = particle.position.copy()
                     logger.info(f"Particle {i + 1} found a new best position.")
                 
-                # Update global best
                 if score < self.global_best_score:
                     self.global_best_score = score
                     self.global_best_position = particle.position.copy()
                     logger.info(f"Global best updated by particle {i + 1}.")
             
-            # Update velocities and positions
             for particle in self.particles:
                 particle.update_velocity(self.global_best_position, self.c1, self.c2, self.w, self.max_velocity)
                 particle.update_position(self.search_space)
@@ -318,7 +292,6 @@ class PSO:
             logger.info(f"Global best score: {self.global_best_score}")
             logger.info(f"Global best position: {self.global_best_position}")
             
-            # Early stopping if improvement is minimal
             if iteration > 5 and abs(prev_global_best_score - self.global_best_score) < 1e-3:
                 logger.info("Stopping early due to minimal improvement in global best score.")
                 break
@@ -354,31 +327,24 @@ def evaluate(hyperparams: Dict, seed: int) -> float:
     unique_id = random.randint(0, int(1e6))
     base_config_path = './configs/config.json'
     
-    # configuration
     config_path, config = prepare_config(base_config_path, hyperparams, unique_id)
     exp_path = os.path.join("./saved_info/dd_gan", config['dataset'], config['exp'])
     os.makedirs(exp_path , exist_ok = True)
     try:
-        # Set seeds for reproducibility
         set_random_seeds(seed)
         
-        # training
         run_training(config_path)
         
-        # loss
         loss_score = compute_loss(exp_path)
         
-        # FID score
         if config.get('with_FID', False):
             fid_score = compute_fid_score(config, unique_id)
         else:
             fid_score = 0.0
         
-        # normalize scores
         normalized_loss = normalize_score(loss_score, config.get('loss_min', 0), config.get('loss_max', 1))
         normalized_fid = normalize_score(fid_score, config.get('fid_min', 0), config.get('fid_max', 300))
         
-        # weight the scores
         loss_weight = 0.5
         fid_weight = 0.5
         score = (loss_weight * normalized_loss) + (fid_weight * normalized_fid)
@@ -388,7 +354,6 @@ def evaluate(hyperparams: Dict, seed: int) -> float:
         score = float('inf')
     
     finally:
-        # clean up temporary files
         cleanup_experiment(config, unique_id)
     
     return score
@@ -409,8 +374,8 @@ def prepare_config(base_config_path: str, hyperparams: Dict, unique_id: int) -> 
     config = load_json_to_dict(base_config_path, local=True)
     config.update(hyperparams)
     config['exp'] = f"pso_eval_{unique_id}"
-    config['num_epoch'] = 1  # Set epochs to 1 for quick evaluation
-    config['seed'] = config.get('seed', 42)  # Ensure seed is present
+    config['num_epoch'] = 1
+    config['seed'] = config.get('seed', 42) 
     
     new_config_path = f'./configs/config_{unique_id}.json'
     save_dict_to_json(config, new_config_path, local=True)
@@ -468,7 +433,6 @@ def compute_fid_score(config: Dict, unique_id: int) -> float:
     Returns:
         float: FID score.
     """
-    # real images directory has enough images
     real_img_dir = os.path.join(config['save_dir'], 'real_images')
     generated_samples_dir = os.path.join(config['save_dir'], f"generated_samples_{config['exp']}")
     os.makedirs(generated_samples_dir , exist_ok = True)
@@ -497,7 +461,7 @@ def compute_fid_score(config: Dict, unique_id: int) -> float:
         with open(fid_file, 'r') as f:
             fid_score = float(f.readline().strip())
     else:
-        fid_score = float('inf')  # Assign a high value if FID score is not found
+        fid_score = float('inf')
     
     return fid_score
 
@@ -518,8 +482,6 @@ def normalize_score(score: float, score_min: float, score_max: float) -> float:
         return 0.0
     
     normalized = (score - score_min) / (score_max - score_min)
-    
-    # normalized score within [0, 1]
     return max(0.0, min(1.0, normalized))
 
 
@@ -567,7 +529,7 @@ def main():
     """
     Main function to parse arguments and run the PSO optimizer.
     """
-    global logger  # Declare logger as global to modify it within this function
+    global logger
     
     install_ninja()
     
@@ -597,7 +559,6 @@ def main():
     
     args = parser.parse_args()
     
-    # Reconfigure logger if a different log file is specified
     if args.log_file != 'pso_gan_optimization.log':
         logger.handlers.clear()
         logger = setup_logger(log_file=args.log_file)
@@ -606,10 +567,8 @@ def main():
         logger.info("Starting with multiprocessing")
         multiprocessing.set_start_method('spawn', force=True)
     
-    # Set the global seed
     set_random_seeds(args.seed)
     
-    # load or create configuration
     if args.config_file and os.path.isfile(args.config_file):
         
         config = load_json_to_dict(args.config_file, local=True)
@@ -622,7 +581,6 @@ def main():
         
         config = load_json_to_dict('./configs/config.json', local=True)
     
-    # update base configuration with additionals
     to_add = {
         'save_dir': args.save_dir,
         'limited_iter': args.limited_iteration_mode,
@@ -631,21 +589,17 @@ def main():
         'batch_size': args.batch_size,
         'num_workers': 0,
         'with_FID': args.with_FID,
-        'seed': args.seed  # Ensure seed is included
+        'seed': args.seed 
     }
     modify_json_file('./configs/config.json', to_add, local=True)
     
-    # load the search space
     with open(args.search_space, 'r') as f:
         search_space = json.load(f)
     
-    # Adjust search space parsing
-    # Remove 'batch_size' from search_space if present
     search_space.pop('batch_size', None)
     if 'step' in search_space:
         search_space['step'].pop('batch_size', None)
     
-    # initialize PSO
     pso = PSO(
         search_space=search_space,
         num_particles=args.num_particles,
@@ -653,15 +607,13 @@ def main():
         c1=1.5,
         c2=1.5,
         w=0.7,
-        do_clamping=True,  # Enable clamping if desired
+        do_clamping=True,
         use_multiprocessing=args.use_multiprocessing,
         seed=args.seed
     )
     
-    # run optimization
     pso.optimize()
     
-    # save best hyperparameters found
     with open('best_hyperparameters.json', 'w') as f:
         json.dump(pso.global_best_position, f, indent=4)
     
@@ -672,6 +624,5 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 
 #cloner174
