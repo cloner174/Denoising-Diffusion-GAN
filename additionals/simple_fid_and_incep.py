@@ -85,3 +85,5 @@ if __name__ == "__main__":
     # Calculate FID between real and generated images
     fid_score = calculate_fid(REAL_IMAGES_PATH, GENERATED_IMAGES_PATH)
     print(f"FID Score: {fid_score}")
+
+#GPT4
