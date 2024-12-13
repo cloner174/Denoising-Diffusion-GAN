@@ -12,6 +12,44 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from additionals.utilities import load_slice_info, save_slice_info
 
 
+
+class DatasetCustom(Dataset):
+    
+    def __init__(self, data_dir, class_ ='train', transform = None):
+        
+        self.class_ = class_
+        self.transform = transform
+        self.data_dir = data_dir
+        self.images_all = None
+        
+        self.__prepeare__()
+        
+    
+    def __prepeare__(self):
+        
+        data_path = os.path.join(self.data_dir, self.class_)
+        
+        if not os.path.isdir(data_path):
+            raise FileNotFoundError("Data should be inside a folder in data_dir which have one of these names: [train, val, test]!")
+        
+        self.images_all =  glob.glob(data_path + "/*/*.png")
+        
+    
+    def __getitem__(self, index):
+        
+        image_path = self.images_all[index]
+        image = Image.open(image_path)
+        image = image.convert("RGB")
+        if self.transform is not None:
+            image = self.transform(image)
+        
+        return image, 'Dumm'
+    
+    def __len__(self):
+        return len(self.images_all)
+
+
+
 class Luna16Dataset(Dataset):
     
     def __init__(self, 
@@ -419,44 +457,6 @@ class PositivePatchDataset(Dataset):
             image_2d = self.transform(image_2d)
         
         return image_2d, 1  # 'Dummy' label! برای مدل جن نیاز ی به لیبل نیست
-
-
-
-
-class DatasetCustom(Dataset):
-    
-    def __init__(self, data_dir, class_ ='train', transform = None):
-        
-        self.class_ = class_
-        self.transform = transform
-        self.data_dir = data_dir
-        self.images_all = None
-        
-        self.__prepeare__()
-        
-    
-    def __prepeare__(self):
-        
-        data_path = os.path.join(self.data_dir, self.class_)
-        
-        if not os.path.isdir(data_path):
-            raise FileNotFoundError("The class_ param, should be one of [train, val, test]!")
-        
-        self.images_all =  glob.glob(data_path + "/*/*.jpg")
-        
-    
-    def __getitem__(self, index):
-        
-        image_path = self.images_all[index]
-        image = Image.open(image_path)
-        image = image.convert("RGB")
-        if self.transform is not None:
-            image = self.transform(image)
-        
-        return image, 'Dumm'
-    
-    def __len__(self):
-        return len(self.images_all)
 
 
 #cloner174
