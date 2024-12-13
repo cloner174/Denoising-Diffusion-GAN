@@ -221,6 +221,8 @@ if __name__ == '__main__':
         
         args = argparse.Namespace(**config)
     
+    #exp_path = os.path.join("./saved_info/dd_gan", args['dataset'], args['exp'])
+    #os.makedirs(exp_path , exist_ok = True)
     main(args)
 
 #cloner174
