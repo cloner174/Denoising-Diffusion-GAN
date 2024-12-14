@@ -414,14 +414,14 @@ def train(rank, gpu, args):
     # Limited iteration mode
     limited_iter = None
     if hasattr(args, 'limited_iter'):
-        print(f"Limited Iteration Mode is On! -> {args.limited_iter}")
+        #print(f"Limited Iteration Mode is On! -> {args.limited_iter}")
         if isinstance(args.limited_iter, int):
             limited_iter = [i for i in range(args.limited_iter)]
             print(f"Limiting to {args.limited_iter} iterations per epoch.")
         elif isinstance(args.limited_iter, list):
             limited_iter = [i for i in range(int(np.mean(args.limited_iter)))]
             print(f"Limiting to {int(np.mean(args.limited_iter))} iterations per epoch.")
-        print('-----------------')
+        print('-------------------------------------------------')
     
     # Training loop
     for epoch in range(init_epoch, args.num_epoch + 1):
