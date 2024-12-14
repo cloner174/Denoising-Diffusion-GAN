@@ -374,7 +374,7 @@ def prepare_config(base_config_path: str, hyperparams: Dict, unique_id: int) -> 
     config = load_json_to_dict(base_config_path, local=True)
     config.update(hyperparams)
     config['exp'] = f"pso_eval_{unique_id}"
-    config['num_epoch'] = 1
+    config['num_epoch'] = 15
     config['seed'] = config.get('seed', 42) 
     
     new_config_path = f'./configs/config_{unique_id}.json'
@@ -433,7 +433,7 @@ def compute_fid_score(config: Dict, unique_id: int) -> float:
     Returns:
         float: FID score.
     """
-    real_img_dir = os.path.join(config['save_dir'], 'real_images')
+    real_img_dir = os.path.join(config['save_dir'], 'CancerImagesTest')
     generated_samples_dir = os.path.join(config['save_dir'], f"generated_samples_{config['exp']}")
     os.makedirs(generated_samples_dir , exist_ok = True)
     if not os.path.isdir(real_img_dir) or len(os.listdir(real_img_dir)) < 100:
@@ -575,8 +575,8 @@ def main():
         save_dict_to_json(config, filename='./configs/config.json', local=True)
         logger.info(f"Config file loaded from: {args.config_file}")
     else:
+        logger.info("No config file provided. Using default configuration.")
         if not os.path.isfile('./configs/config.json'):
-            logger.info("No config file provided. Using default configuration.")
             run_bash_command(f"{find_python_command()} {os.curdir}/additionals/create_conf_default.py")
         
         config = load_json_to_dict('./configs/config.json', local=True)
