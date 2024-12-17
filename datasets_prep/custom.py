@@ -39,11 +39,11 @@ class DatasetCustom(Dataset):
         
         image_path = self.images_all[index]
         image = Image.open(image_path)
-        #image = image.convert("RGB")
+        image = image.convert("RGB")
         if self.transform is not None:
             image = self.transform(image)
         
-        return image, 'Dumm'
+        return image, 1
     
     def __len__(self):
         return len(self.images_all)
