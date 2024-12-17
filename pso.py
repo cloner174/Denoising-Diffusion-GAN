@@ -374,7 +374,8 @@ def prepare_config(base_config_path: str, hyperparams: Dict, unique_id: int) -> 
     config = load_json_to_dict(base_config_path, local=True)
     config.update(hyperparams)
     config['exp'] = f"pso_eval_{unique_id}"
-    config['num_epoch'] = 15
+    config['num_epoch'] = 4
+    config['limited_iter'] = 202
     config['seed'] = config.get('seed', 42) 
     
     new_config_path = f'./configs/config_{unique_id}.json'
