@@ -424,6 +424,8 @@ def train(rank, gpu, args):
         print('-----------------')
     
     # Training loop
+    losses = []
+    losses_file = os.path.join(exp_path, 'losses.json')
     for epoch in range(init_epoch, args.num_epoch + 1):
         if args.distributed and 'train_sampler' in locals():
             train_sampler.set_epoch(epoch)
@@ -530,9 +532,9 @@ def train(rank, gpu, args):
             if loss_values_G:
                 optimizerG.step(loss_values_G)
         
-        # Save outputs and checkpoints
+        
         if rank == 0:
-            # Save model state dictionaries appropriately
+            
             if args.distributed:
                 netG_state_dict = netG.module.state_dict()
                 netD_state_dict = netD.module.state_dict()
@@ -566,9 +568,22 @@ def train(rank, gpu, args):
                 if args.use_ema:
                     emaG.swap_parameters_with_ema(store_params_in_ema=True)
             
-            # Save final generator loss
-            with open(os.path.join(exp_path, 'final_loss.txt'), 'w') as f:
-                f.write(f"{errG.item()}\n")
+            if loss_values_D and loss_values_G:
+                avg_loss_D = sum(loss_values_D) / len(loss_values_D)
+                avg_loss_G = sum(loss_values_G) / len(loss_values_G)
+            else:
+                avg_loss_D = float('inf')
+                avg_loss_G = float('inf')
+            
+            epoch_loss = {
+                'epoch': epoch + 1,
+                'G_loss': avg_loss_G,
+                'D_loss': avg_loss_D
+            }
+            losses.append(epoch_loss)
+            
+            with open(losses_file, 'w') as f:
+                json.dump(losses, f, indent=4)
 
 
 def init_processes(rank, size, fn, args):
