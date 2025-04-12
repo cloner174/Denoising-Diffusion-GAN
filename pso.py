@@ -343,7 +343,10 @@ def evaluate(hyperparams: Dict, seed: int) -> float:
             fid_score = 0.0
         
         normalized_loss = normalize_score(loss_score, config.get('loss_min', 0), config.get('loss_max', 1))
-        normalized_fid = normalize_score(fid_score, config.get('fid_min', 0), config.get('fid_max', 300))
+        if fid_score > 350 :
+            normalized_fid = 0.0
+        else:
+            normalized_fid = normalize_score(fid_score, 0, 350 ) #normalized_fid = normalize_score(fid_score, config.get('fid_min', 0), config.get('fid_max', 300))
         
         loss_weight = 0 #0.5
         fid_weight = 1 #0.5
