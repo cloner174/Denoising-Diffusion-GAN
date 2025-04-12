@@ -343,12 +343,13 @@ def evaluate(hyperparams: Dict, seed: int) -> float:
             fid_score = 0.0
         
         normalized_loss = normalize_score(loss_score, config.get('loss_min', 0), config.get('loss_max', 1))
+        #normalized_fid = normalize_score(fid_score, config.get('fid_min', 0), config.get('fid_max', 300))
         if fid_score > 350 :
             normalized_fid = 0.0
         else:
-            normalized_fid = normalize_score(fid_score, 0, 350 ) #normalized_fid = normalize_score(fid_score, config.get('fid_min', 0), config.get('fid_max', 300))
+            normalized_fid = normalize_score(fid_score, 0, 350 ) 
         
-        loss_weight = 0 #0.5
+        loss_weight = 0 # loss is not used for optimization
         fid_weight = 1 #0.5
         score = (loss_weight * normalized_loss) + (fid_weight * normalized_fid)
     
@@ -559,7 +560,7 @@ def main():
     parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
     parser.add_argument('--batch_size', type=int, default=8,
                         help='Initial batch size to use')
-    parser.add_argument('--num_workers', type=int, default=2, help='Number of workers for data loading')
+    parser.add_argument('--num_workers', type=int, default=0, help='Number of workers for data loading')
     
     args = parser.parse_args()
     
@@ -591,7 +592,7 @@ def main():
         'resume': args.resume,
         'distributed': False,
         'batch_size': args.batch_size,
-        'num_workers': 0,
+        'num_workers': args.num_workers,
         'with_FID': args.with_FID,
         'seed': args.seed 
     }
