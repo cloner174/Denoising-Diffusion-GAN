@@ -22,7 +22,7 @@ if __name__ == '__main__':
                 install_package('ninja')
     
     
-    parser = argparse.ArgumentParser('ddgan for Luna16')
+    parser = argparse.ArgumentParser('ddgan for DBT dataset')
     
     parser.add_argument('--use_config_file',
                     help='If True, the arguments from the command line will be ignored, and the default configuration file will be used.')
@@ -40,7 +40,7 @@ if __name__ == '__main__':
     
     parser.add_argument('--bound_expand_limit', type=int , help='How many indexes should expand the bounds of images!!')
     
-    parser.add_argument('--dataset', type=str, default='luna16', help='name of dataset', choices=['custom','posluna', 'luna16'])
+    parser.add_argument('--dataset', type=str, default='custom', help='name of dataset', choices=['custom','posluna', 'luna16'])
     
     parser.add_argument('--resume', action='store_true')
     
@@ -222,7 +222,11 @@ if __name__ == '__main__':
         args = argparse.Namespace(**config)
     
     #exp_path = os.path.join("./saved_info/dd_gan", args['dataset'], args['exp'])
-    #os.makedirs(exp_path , exist_ok = True)
+    parent_dir = "./saved_info/dd_gan/{}".format(args.dataset)
+    exp = args.exp
+    exp_path = os.path.join(parent_dir,exp)
+    os.makedirs(exp_path , exist_ok = True)
+    
     main(args)
 
 #cloner174
