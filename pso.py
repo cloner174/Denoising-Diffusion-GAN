@@ -78,6 +78,7 @@ def set_random_seeds(seed: int = 42):
     torch.backends.cudnn.benchmark = False
 
 
+'''
 def run_bash_command(command: str) -> None:
     """
     Executes a bash command and logs its output.
@@ -107,7 +108,7 @@ def run_bash_command(command: str) -> None:
                 logger.info(output.strip())
             if error:
                 logger.error(error.strip())
-            if output == '' and error == '' and process.poll() is not None:
+            if output == "" and error == "" and process.poll() is not None:
                 break
         
         
@@ -118,7 +119,7 @@ def run_bash_command(command: str) -> None:
     except Exception as e:
         logger.error(f"An error occurred while executing the command: {e}")
         raise
-
+'''
 
 class Particle:
     """
