@@ -562,6 +562,12 @@ def main():
     parser.add_argument('--batch_size', type=int, default=8,
                         help='Initial batch size to use')
     parser.add_argument('--num_workers', type=int, default=0, help='Number of workers for data loading')
+
+    #pso args:
+    parser.add_argument('--c1', type=float, default=1.5, help='c1 for PSO')
+    parser.add_argument('--c2', type=float, default=1.5, help='c2 for PSO')
+    parser.add_argument('--w', type=float, default=0.7, help='w for PSO')
+    parser.add_argument('--do_clamping', action='store_true', help='Whether do_clamping is set to True or False')
     
     args = parser.parse_args()
     
@@ -610,10 +616,10 @@ def main():
         search_space=search_space,
         num_particles=args.num_particles,
         num_iterations=args.num_iterations,
-        c1=1.5,
-        c2=1.5,
-        w=0.7,
-        do_clamping=True,
+        c1=args.c1,
+        c2=args.c2,
+        w=args.w,
+        do_clamping=args.do_clamping,
         use_multiprocessing=args.use_multiprocessing,
         seed=args.seed
     )
