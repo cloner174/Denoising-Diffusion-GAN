@@ -350,8 +350,8 @@ def evaluate(hyperparams: Dict, seed: int) -> float:
         else:
             normalized_fid = normalize_score(fid_score, 0, 350 ) 
         
-        loss_weight = 0 # loss is not used for optimization
-        fid_weight = 1 #0.5
+        loss_weight = 0.5 # if 0: loss will not be used for optimization.
+        fid_weight = 0.5 # 0.5 for half effect!
         score = (loss_weight * normalized_loss) + (fid_weight * normalized_fid)
     
     except Exception as e:
@@ -410,22 +410,56 @@ def run_training(config_path: str):
 
 def compute_loss(exp_path: str) -> float:
     """
-    Compute the generator loss from the training output.
+    Compute a score based on the generator and discriminator losses across all epochs.
     
     Args:
         exp_path (str): Path to the experiment directory.
     
     Returns:
-        float: Generator loss.
+        float: Computed score where lower is better.
     """
-    loss_file = os.path.join(exp_path, 'final_loss.txt')
-    if os.path.exists(loss_file):
-        with open(loss_file, 'r') as f:
-            loss_score = float(f.readline().strip())
-    else:
-        loss_score = float('inf')
+    losses_file = os.path.join(exp_path, 'losses.json')
+    if not os.path.exists(losses_file):
+        logger.error(f"Losses file not found at {losses_file}.")
+        return float('inf')
     
-    return loss_score
+    try:
+        with open(losses_file, 'r') as f:
+            losses = json.load(f)  # list of dicts with 'G_loss' and 'D_loss'
+    except Exception as e:
+        logger.error(f"Failed to read losses file: {e}")
+        return float('inf')
+    
+    if not isinstance(losses, list):
+        logger.error("Losses file format is incorrect. Expected a list of loss dicts.")
+        return float('inf')
+    
+    target_G = 1.0
+    target_D = 1.3
+    tolerance_G = 0.5
+    tolerance_D = 0.3
+    
+    total_score = 0.0
+    for epoch, loss in enumerate(losses, 1):
+        G_loss = loss.get('G_loss', None)
+        D_loss = loss.get('D_loss', None)
+        
+        if G_loss is None or D_loss is None:
+            logger.warning(f"Epoch {epoch}: Missing G_loss or D_loss.")
+            return float('inf')
+        
+        deviation_G = abs(G_loss - target_G)
+        deviation_D = abs(D_loss - target_D)
+        
+        penalty_G = deviation_G if deviation_G > tolerance_G else 0.0
+        penalty_D = deviation_D if deviation_D > tolerance_D else 0.0
+        
+        epoch_score = penalty_G + penalty_D
+        total_score += epoch_score
+    
+    average_score = total_score / len(losses)
+    
+    return average_score
 
 
 def compute_fid_score(config: Dict, unique_id: int) -> float:
